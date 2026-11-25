@@ -380,8 +380,8 @@ def test_h_i_origin_check_live_server(isolate_provider_db, monkeypatch):
         assert calls == []
         # TEST I: localhost requests (no Origin, and matching Origin) -> accepted (303 redirect)
         assert post("/chat", {}) == 303
-        assert post("/chat", {"Origin": f"http://127.0.0.1:{port}"})
-        assert post("/project", {"Origin": f"http://localhost:{port}", "Host": f"localhost:{port}"})
+        assert post("/chat", {"Origin": f"http://127.0.0.1:{port}"}) == 303
+        assert post("/project", {"Origin": f"http://localhost:{port}", "Host": f"localhost:{port}"}) == 303
         assert calls == ["hi", "hi", ("project", "x")]
     finally:
         urllib.request.install_opener(urllib.request.build_opener())
