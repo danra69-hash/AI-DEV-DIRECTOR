@@ -249,13 +249,13 @@ def _recovery_summary(preview: dict, providers: dict) -> dict:
         row = providers.get(dom, {}) or {}
         if st == "RECOVERING":
             short.append(f"{PROVIDER_LABELS[dom]} recovering")
-            short_ko.append(f"{I18N.PROVIDER_LABEL[dom][0]} 복구 중")
+            short_ko.append(f"{I18N.PROVIDER_LABEL[dom][0]} recovering")
         elif st != "HEALTHY":
             short.append(f"{PROVIDER_LABELS[dom]} {st.lower().replace('_', ' ')}")
             short_ko.append(f"{I18N.PROVIDER_LABEL[dom][0]} {I18N.status_ko(st)}")
         if st != "HEALTHY" and row.get("failure_reason"):
             details.append(f"{dom}: {row.get('failure_reason')}")
-    return {"short": "; ".join(short) or "all providers verified", "short_ko": " · ".join(short_ko) or "모든 AI 정상 확인됨", "details": details}
+    return {"short": "; ".join(short) or "all providers verified", "short_ko": " · ".join(short_ko) or "All AIs verified", "details": details}
 
 
 def set_project(path: str) -> str:
@@ -586,7 +586,7 @@ def approve_run(run_id: str, request_id: str = "", note: str = "") -> dict:
                 # the user resolved the blocking decision: hand the project slot back to the mission
                 with _RUN_LOCK:
                     _ACTIVE_PROJECTS[key] = mission["mission_id"]
-                cm.add_message(sid, "SYSTEM", f"승인 반영 - 미션 {mission['mission_id']} 이어서 진행", run_id=run_id)
+                cm.add_message(sid, "SYSTEM", f"Approval applied - continuing mission {mission['mission_id']}", run_id=run_id)
                 _run_mission_thread(sid, mission["mission_id"], key, reopen=True)
         except Exception as e:
             cm.add_message(sid, "SYSTEM", f"Run failed: {str(e)}", run_id=run_id)
@@ -692,7 +692,7 @@ def _run_mission_thread(sid: str, mission_id: str, key: str, reopen: bool = Fals
         except Exception as e:
             import traceback
             traceback.print_exc()
-            runner.notify(f"미션 {mission_id} 실행 오류: {str(e)[:500]}")
+            runner.notify(f"Mission {mission_id} failed to run: {str(e)[:500]}")
         finally:
             with _RUN_LOCK:
                 if _ACTIVE_PROJECTS.get(key) == mission_id:
@@ -713,17 +713,17 @@ def _start_mission(sid: str, orch: Orchestrator, project_path: str, goal: str, o
         _ACTIVE_PROJECTS[key] = mission["mission_id"]
     ChatManager().add_message(
         sid, "SYSTEM",
-        f"미션 시작 {mission['mission_id']}: HEAD가 목표 달성까지 단계별로 계획·판단합니다 (최대 {mission['max_steps']}단계). "
-        "결제·실계좌 주문·자격증명·외부 비가역 작업만 사용자에게 확인합니다.")
+        f"Mission started {mission['mission_id']}: HEAD plans and decides step by step until the goal is met (up to {mission['max_steps']} steps). "
+        "You are asked only about payments, live-account orders, credentials, and irreversible external actions.")
     _run_mission_thread(sid, mission["mission_id"], key)
     return mission["mission_id"]
 
 
 _USAGE_BACKFILLED = {"done": False}
-STAGE_KO = {"PLANNING": "계획", "ORDER_READY": "구현 준비", "BUILDING": "코드 작성", "VERIFYING": "테스트",
-            "REVIEWING": "독립 검토", "DECIDING": "HEAD 판단", "PASS": "통과", "FAIL": "실패",
-            "HUMAN_REQUIRED": "사용자 확인", "TIMEOUT": "시간 초과", "IDLE": "대기", "MISSION_PLANNING": "다음 단계 계획",
-            "ENTRY_REVIEW": "오더 검토", "CHAT": "대화"}
+STAGE_KO = {"PLANNING": "Plan", "ORDER_READY": "Ready to build", "BUILDING": "Writing code", "VERIFYING": "Tests",
+            "REVIEWING": "Independent review", "DECIDING": "HEAD decision", "PASS": "Passed", "FAIL": "Failed",
+            "HUMAN_REQUIRED": "Needs you", "TIMEOUT": "Timed out", "IDLE": "Idle", "MISSION_PLANNING": "Planning the next step",
+            "ENTRY_REVIEW": "Order review", "CHAT": "Chat"}
 
 
 def build_activity_payload(limit_missions: int = 5) -> dict:
@@ -836,7 +836,7 @@ def start_goal_mission(project_path: str, goal: str, profile: Optional[str] = No
         orch = Orchestrator(config=load_config())
     except Exception as e:
         return {"status": "rejected", "error": str(e)[:300]}
-    label = {"solomon": "솔로몬 CEO 지시", "cli": "CLI 지시", "api": "외부 지시"}.get(source, source)
+    label = {"solomon": "Solomon instruction", "cli": "CLI instruction", "api": "External instruction"}.get(source, source)
     cm.add_message(sid, "USER", f"[{label} · {profile}] {goal}")
     try:
         previous = latest_deliverable(project_path) if autopilot.enabled(orch.config) else None
@@ -862,7 +862,7 @@ def start_goal_mission(project_path: str, goal: str, profile: Optional[str] = No
     gate = autopilot.entry_gate(order, project_path, orch.head, cwd=project_path)
     order = gate["order"]
     if gate["notes"]:
-        cm.add_message(sid, "SYSTEM", "HEAD 대리 처리: " + "; ".join(gate["notes"])[:1500])
+        cm.add_message(sid, "SYSTEM", "HEAD handled this: " + "; ".join(gate["notes"])[:1500])
     if gate["escalate"]:
         run_id = _record_human_required(orch, project_path, order.goal, gate["escalate"], order)
         cm.add_message(sid, "SYSTEM", f"HUMAN_REQUIRED: {gate['escalate']}", run_id=run_id)
@@ -884,7 +884,7 @@ def is_stop_request(msg: str) -> bool:
     return 0 < len(text) <= 80 and bool(STOP_INTENT.search(text)) and not re.search(r"(하지\s*마|말고|않|않고|말아)", text)
 
 
-def stop_missions(reason: str = "", mission_id: Optional[str] = None, by: str = "사용자") -> dict:
+def stop_missions(reason: str = "", mission_id: Optional[str] = None, by: str = "you") -> dict:
     """작업 정지: mark RUNNING missions STOPPED and kill the CLI processes working on them. The dashboard stays up.
     Records and worktrees are kept; the mission can be continued later with reopen (decide: extend/replan)."""
     from core.mission import stop_request
@@ -895,7 +895,7 @@ def stop_missions(reason: str = "", mission_id: Optional[str] = None, by: str = 
     killed = ProcessTreeRunner.kill_active() if stopped else []
     sid = active_session_id()
     if stopped:
-        ChatManager().add_message(sid, "SYSTEM", f"[{by}] 작업 정지: 미션 {', '.join(stopped)} 정지 · 실행 중이던 AI 프로세스 {len(killed)}개 종료 · 기록과 작업본은 남습니다" + (f" · 사유: {reason[:200]}" if reason else ""))
+        ChatManager().add_message(sid, "SYSTEM", f"[{by}] Work stopped: mission {', '.join(stopped)} stopped · {len(killed)} running AI processes ended · records and work copies are kept" + (f" · reason: {reason[:200]}" if reason else ""))
     invalidate_status_cache()
     return {"status": "stopped" if stopped else "idle", "missions": stopped, "killed": killed}
 
@@ -921,8 +921,8 @@ def decide_mission(mission_id: str, action: str, reason: str = "", max_steps: Op
         m = store.load(mission_id) or m
         m["applied"] = {"run_id": rid, "at": datetime.utcnow().isoformat(), "by": by, **{k: v for k, v in result.items() if k != "request_id"}}
         store.save(m)
-        ChatManager().add_message(sid, "SYSTEM", f"[{by}] 미션 {mission_id} 결과물 적용: {result.get('status')}"
-                                  + (f" · {len(result.get('files', []))}개 파일" if result.get("files") else "")
+        ChatManager().add_message(sid, "SYSTEM", f"[{by}] Mission {mission_id} result applied: {result.get('status')}"
+                                  + (f" · {len(result.get('files', []))} files" if result.get("files") else "")
                                   + (" · " + "; ".join(result.get("blocks", []))[:300] if result.get("blocks") else ""), run_id=rid)
         invalidate_status_cache()
         return result
@@ -931,7 +931,7 @@ def decide_mission(mission_id: str, action: str, reason: str = "", max_steps: Op
         result = _result_manager().discard(rid, request_id=f"{by.lower()}-{mission_id}", by=by) if rid else {"status": "refused", "reason": "no deliverable"}
         m["applied"] = {"run_id": rid, "at": datetime.utcnow().isoformat(), "by": by, "status": "discarded" if result.get("status") == "discarded" else result.get("status"), "reason": reason[:300]}
         store.save(m)
-        ChatManager().add_message(sid, "SYSTEM", f"[{by}] 미션 {mission_id} 결과물 폐기: {result.get('status')} {reason[:200]}")
+        ChatManager().add_message(sid, "SYSTEM", f"[{by}] Mission {mission_id} result discarded: {result.get('status')} {reason[:200]}")
         invalidate_status_cache()
         return result
     if action in ("extend", "replan"):
@@ -949,7 +949,7 @@ def decide_mission(mission_id: str, action: str, reason: str = "", max_steps: Op
                 m["steps"][-1]["operator_replan"] = (reason or f"{by} re-plan")[:300]
             store.save(m)
             _ACTIVE_PROJECTS[key] = mission_id
-        ChatManager().add_message(sid, "SYSTEM", f"[{by}] 미션 {mission_id} {'재계획' if action == 'replan' else '연장'}: 단계 예산 {m['max_steps']}" + (f" · {reason[:200]}" if reason else ""))
+        ChatManager().add_message(sid, "SYSTEM", f"[{by}] Mission {mission_id} {'replan' if action == 'replan' else 'extend'}: step budget {m['max_steps']}" + (f" · {reason[:200]}" if reason else ""))
         _run_mission_thread(sid, mission_id, key, reopen=True)
         return {"status": "resumed", "mission_id": mission_id, "max_steps": m["max_steps"]}
     return {"status": "error", "error": f"unknown action {action!r}"}
@@ -989,7 +989,7 @@ def resume_interrupted_missions() -> list:
                 continue
             _ACTIVE_PROJECTS[key] = m["mission_id"]
         sid = active_session_id()
-        ChatManager().add_message(sid, "SYSTEM", f"재시작 후 미션 자동 재개: {m['mission_id']} ({m['goal'][:200]})")
+        ChatManager().add_message(sid, "SYSTEM", f"Mission resumed after restart: {m['mission_id']} ({m['goal'][:200]})")
         _run_mission_thread(sid, m["mission_id"], key)
         started.append(m["mission_id"])
     return started
@@ -1009,9 +1009,9 @@ def handle_chat_message(msg: str):
     # "멈춰" is an operator command, not a conversation: stop the running mission(s) here instead of asking HEAD
     # to talk about stopping (2026-11-02: HEAD acknowledged '즉시 작업 중단' in words while the mission kept building).
     if is_stop_request(msg):
-        result = stop_missions(msg, by="사용자")
+        result = stop_missions(msg, by="you")
         if result["status"] == "idle":
-            cm.add_message(sid, "SYSTEM", "정지할 실행 중 미션이 없습니다. (대기 상태)")
+            cm.add_message(sid, "SYSTEM", "No mission is running. (idle)")
         return
 
     # Cheap health probe (binary + --version, bounded recheck of stale failures). No inference calls.
@@ -1144,7 +1144,7 @@ def handle_chat_message(msg: str):
         gate = autopilot.entry_gate(order, project_path, orch.head, cwd=project_path)
         order = gate["order"]
         if gate["notes"]:
-            cm.add_message(sid, "SYSTEM", "HEAD 대리 처리: " + "; ".join(gate["notes"])[:1500])
+            cm.add_message(sid, "SYSTEM", "HEAD handled this: " + "; ".join(gate["notes"])[:1500])
         if gate["escalate"]:
             run_id = _record_human_required(orch, project_path, order.goal, gate["escalate"], order)
             cm.add_message(sid, "SYSTEM", f"HUMAN_REQUIRED: {gate['escalate']}", run_id=run_id)
@@ -1252,7 +1252,7 @@ def build_status_payload() -> dict:
         except Exception:
             pass
     if recovered:
-        last_details = ('수동 복구 기록 있음 · 전체 파이프라인 재검증 미완료. ' + str(recovered.get('summary') or ''))[:300]
+        last_details = ('A manual recovery is on record · the full pipeline was not re-verified. ' + str(recovered.get('summary') or ''))[:300]
     preview = _effective_mode_preview()
     cm = ChatManager()
     sid = active_session_id()
@@ -1312,30 +1312,30 @@ def build_status_payload() -> dict:
     ap = payload["approval"]
     if ap.get("required"):
         first = (ap.get("items") or [{}])[0]
-        payload["todo"] = (first.get("file") + " 변경 승인 필요") if first.get("file") else (I18N.reason_ko(first.get("code", ""))[0] + " 승인 필요")
+        payload["todo"] = (first.get("file") + " needs approval") if first.get("file") else (I18N.reason_ko(first.get("code", ""))[0] + " needs approval")
     elif payload["human_required_count"]:
-        payload["todo"] = f"승인 대기 {payload['human_required_count']}건"
+        payload["todo"] = f"{payload['human_required_count']} waiting for approval"
     elif payload["pending_result_count"]:
-        payload["todo"] = f"적용 대기 결과물 {payload['pending_result_count']}건"
+        payload["todo"] = f"{payload['pending_result_count']} results ready to apply"
     else:
         payload["todo"] = I18N.t("nothing_todo")
     return payload
 
 
 _RESEARCH_STAGE_KO = {
-    "RESEARCH_INTAKE": "연구 준비",
-    "INDEPENDENT_RESEARCH": "3개 독립 제안",
-    "CROSS_CRITIQUE": "교차 비평",
-    "SYNTHESIS": "가설 합성",
-    "EXPERIMENT_PLANNING": "실험 계획",
-    "EXPERIMENT_BUILDING": "실험 구현",
-    "EXPERIMENT_VERIFYING": "실험 검증",
-    "EXPERIMENT_REVIEW": "독립 검토",
-    "RESULT_INTERPRETATION": "결과 해석",
-    "NEXT_CYCLE": "다음 사이클 준비",
-    "MILESTONE_COMPLETE": "마일스톤 완료",
-    "HUMAN_REQUIRED": "사용자 확인 필요",
-    "RESEARCH_STOPPED": "연구 중지",
+    "RESEARCH_INTAKE": "Preparing research",
+    "INDEPENDENT_RESEARCH": "3 independent proposals",
+    "CROSS_CRITIQUE": "Cross-critique",
+    "SYNTHESIS": "Synthesized hypothesis",
+    "EXPERIMENT_PLANNING": "Experiment plan",
+    "EXPERIMENT_BUILDING": "Building the experiment",
+    "EXPERIMENT_VERIFYING": "Verifying the experiment",
+    "EXPERIMENT_REVIEW": "Independent review",
+    "RESULT_INTERPRETATION": "Interpreting results",
+    "NEXT_CYCLE": "Preparing the next cycle",
+    "MILESTONE_COMPLETE": "Milestone complete",
+    "HUMAN_REQUIRED": "Needs you",
+    "RESEARCH_STOPPED": "Research stopped",
 }
 
 
@@ -1359,10 +1359,10 @@ def build_research_status_payload(session_id: Optional[str] = None) -> dict:
     empty = {
         "mode": "TRIAD_RESEARCH", "available": False, "active": False, "session_id": None,
         "moonshot": "", "project_path": "", "status": "NONE", "cycle_number": 0,
-        "cycle_budget": 0, "current_stage": "NONE", "current_stage_ko": "연구 없음",
+        "cycle_budget": 0, "current_stage": "NONE", "current_stage_ko": "No research",
         "proposals": [], "cross_critiques": [], "synthesis": None, "experiment": None,
         "evidence": {}, "interpretations": [], "rejected_ideas": [], "what_we_learned": "",
-        "next_step": "TRIAD 연구 세션을 시작하면 여기에 진행 상황이 표시됩니다.",
+        "next_step": "Start a TRIAD research session to see progress here.",
         "provenance": [],
     }
     required = {
@@ -1479,16 +1479,16 @@ def build_research_status_payload(session_id: Optional[str] = None) -> dict:
     stage = (dict(cycle).get("stage") if cycle else s.get("current_stage")) or "NONE"
     active = s.get("status") == "ACTIVE"
     next_step = latest_memory.get("next_direction") or {
-        "RESEARCH_INTAKE": "세 제공자의 준비 상태를 확인합니다.",
-        "INDEPENDENT_RESEARCH": "서로 격리된 세 제안을 수집합니다.",
-        "CROSS_CRITIQUE": "제안의 약점과 결합 가능성을 교차 검토합니다.",
-        "SYNTHESIS": "실험 가능한 단일 가설을 합성합니다.",
-        "EXPERIMENT_PLANNING": "안전한 실험 ORDER를 작성합니다.",
-        "EXPERIMENT_BUILDING": "NORMAL 안전 파이프라인으로 실험을 구현합니다.",
-        "EXPERIMENT_VERIFYING": "실험 결과와 회귀를 검증합니다.",
-        "EXPERIMENT_REVIEW": "독립 Reviewer가 변경을 검토합니다.",
-        "RESULT_INTERPRETATION": "세 연구자가 결과를 독립 해석합니다.",
-        "NEXT_CYCLE": "학습 내용을 반영해 다음 사이클을 준비합니다.",
+        "RESEARCH_INTAKE": "Checking that all three providers are ready.",
+        "INDEPENDENT_RESEARCH": "Collecting three isolated proposals.",
+        "CROSS_CRITIQUE": "Cross-checking weaknesses and what can be combined.",
+        "SYNTHESIS": "Synthesizing one hypothesis that can be tested.",
+        "EXPERIMENT_PLANNING": "Writing a safe experiment ORDER.",
+        "EXPERIMENT_BUILDING": "Building the experiment on the normal safety pipeline.",
+        "EXPERIMENT_VERIFYING": "Verifying the experiment result and regressions.",
+        "EXPERIMENT_REVIEW": "An independent reviewer is checking the changes.",
+        "RESULT_INTERPRETATION": "The three researchers interpret the result independently.",
+        "NEXT_CYCLE": "Preparing the next cycle from what was learned.",
     }.get(stage, s.get("stopped_reason") or "")
     return {
         "mode": "TRIAD_RESEARCH", "available": True, "active": active,
@@ -1558,7 +1558,7 @@ DASHBOARD_JS = r"""
   }
   function eventKo(text) {
     for (var i = 0; i < (I18N.events || []).length; i++) { try { if (new RegExp(I18N.events[i][0]).test(text)) return [I18N.events[i][1], I18N.events[i][2]]; } catch (e) {} }
-    return ['· 시스템 알림', 'ev-info'];
+    return ['· System notice', 'ev-info'];
   }
   function nearBottom() { return chatBox.scrollTop + chatBox.clientHeight >= chatBox.scrollHeight - 40; }
   function appendMessage(m) {
@@ -1618,7 +1618,7 @@ DASHBOARD_JS = r"""
     }
     var pb = document.getElementById('pipeline-badge');
     if (pb) {
-      var t = (state === 'PASS' || state === 'RECOVERED') ? ko(I18N.state, state) : (state === 'HUMAN_REQUIRED' ? ko(I18N.ui, 'human_required') : (state === 'FAIL' || state === 'TIMEOUT' ? ko(I18N.state, state) : (cur !== undefined ? '진행 중' : '')));
+      var t = (state === 'PASS' || state === 'RECOVERED') ? ko(I18N.state, state) : (state === 'HUMAN_REQUIRED' ? ko(I18N.ui, 'human_required') : (state === 'FAIL' || state === 'TIMEOUT' ? ko(I18N.state, state) : (cur !== undefined ? 'In progress' : '')));
       pb.setAttribute('data-raw', state);
       if (pb.textContent !== t) pb.textContent = t;
       pb.className = 'badge ' + (state === 'PASS' ? 'b-green' : (terminal ? 'b-red' : (cur !== undefined ? 'b-blue' : 'b-muted')));
@@ -1637,7 +1637,7 @@ DASHBOARD_JS = r"""
   function makeResultLi(p) {
     var li = document.createElement('li'); li.className = 'pend res' + (p.run_id === selectedResultId ? ' sel' : '');
     var a = document.createElement('div'); a.className = 'pname'; a.textContent = p.project_name;
-    var b = document.createElement('div'); b.className = 'ptitle2 blue'; b.textContent = '완료 \u00b7 변경 파일 ' + p.changed_count + '개 \u00b7 적용 대기';
+    var b = document.createElement('div'); b.className = 'ptitle2 blue'; b.textContent = 'Done \u00b7 ' + p.changed_count + ' changed files \u00b7 ready to apply';
     var c = document.createElement('div'); c.className = 'prun mono'; c.textContent = p.run_id.slice(0, 26);
     li.appendChild(a); li.appendChild(b); li.appendChild(c);
     li.addEventListener('click', function () {
@@ -1654,7 +1654,7 @@ DASHBOARD_JS = r"""
   // height-capped 전체 보기 panel so past PASS runs never crowd the fixed 1080p layout
   function renderResults(list) {
     list = list || []; window.__lastResultsList = list;
-    setText('results-count', ko(I18N.ui, 'results') + ' ' + list.length + '건'); var rc = document.getElementById('results-count'); if (rc) rc.setAttribute('data-raw', 'RESULTS (' + list.length + ')');
+    setText('results-count', ko(I18N.ui, 'results') + ' ' + list.length); var rc = document.getElementById('results-count'); if (rc) rc.setAttribute('data-raw', 'RESULTS (' + list.length + ')');
     var key = JSON.stringify(list.map(function (p) { return [p.run_id, p.result_state, p.changed_count]; })) + '|' + resultsExpanded + '|' + selectedResultId;
     if (key === lastResultsKey) return;
     lastResultsKey = key;
@@ -1663,7 +1663,7 @@ DASHBOARD_JS = r"""
     if (ul) { while (ul.firstChild) ul.removeChild(ul.firstChild); head.forEach(function (p) { ul.appendChild(makeResultLi(p)); }); }
     var moreRow = document.getElementById('results-more-row'); var moreBtn = document.getElementById('results-more-btn');
     if (moreRow) moreRow.style.display = restCount > 0 ? '' : 'none';
-    if (moreBtn) moreBtn.textContent = resultsExpanded ? ko(I18N.ui, 'close') : ('나머지 ' + restCount + '건 보기');
+    if (moreBtn) moreBtn.textContent = resultsExpanded ? ko(I18N.ui, 'close') : ('Show ' + restCount + ' more');
     var grouped = document.getElementById('results-grouped');
     if (grouped) {
       grouped.style.display = resultsExpanded ? '' : 'none';
@@ -1712,11 +1712,11 @@ DASHBOARD_JS = r"""
     setText('result-headline', label + (res.run_id && res.run_id !== runInfo.run_id ? ' \u00b7 ' + res.run_id.slice(0, 22) : ''));
     card.className = 'resultcard ' + (st === 'APPLIED' ? 'r-applied' : (st === 'DISCARDED' ? 'r-discarded' : ((st.indexOf('ROLLED_BACK') >= 0 || st === 'APPLY_BLOCKED' || blocked) ? 'r-blocked' : 'r-ready')));
     var detail = (res.result || {}).detail || '';
-    var blockedKo = function (txt) { var e = (I18N.reasons || {}); var code = /Main project changed/.test(txt) ? 'BASE_COMMIT_MISMATCH' : (/not clean/.test(txt) ? 'WORKING_TREE_DIRTY' : (/collides/.test(txt) ? 'UNTRACKED_COLLISION' : (/Control/.test(txt) ? 'CONTROL_PLANE_MODIFIED' : ''))); return code && e[code] ? (e[code].why + ' (상세 코드: ' + code + ')') : txt; };
-    setText('result-sub', st === 'APPLIED' ? '프로젝트가 업데이트되었습니다 \u00b7 테스트 통과' : (st === 'DISCARDED' ? '원본 프로젝트는 변경되지 않았습니다 \u00b7 검증 증거 보존' : (st.indexOf('ROLLED_BACK') >= 0 || st === 'APPLY_BLOCKED' ? blockedKo(detail) : (blocked ? ((res.control_plane || []).length ? 'AI DEV DIRECTOR 보호 파일이 결과에 포함되어 적용할 수 없습니다: ' + res.control_plane.join(', ') : '작업 결과 폴더가 없습니다') : '프로젝트에 적용할 준비가 되었습니다'))));
+    var blockedKo = function (txt) { var e = (I18N.reasons || {}); var code = /Main project changed/.test(txt) ? 'BASE_COMMIT_MISMATCH' : (/not clean/.test(txt) ? 'WORKING_TREE_DIRTY' : (/collides/.test(txt) ? 'UNTRACKED_COLLISION' : (/Control/.test(txt) ? 'CONTROL_PLANE_MODIFIED' : ''))); return code && e[code] ? (e[code].why + ' (code: ' + code + ')') : txt; };
+    setText('result-sub', st === 'APPLIED' ? 'The project was updated \u00b7 tests passed' : (st === 'DISCARDED' ? 'The original project was not changed \u00b7 evidence kept' : (st.indexOf('ROLLED_BACK') >= 0 || st === 'APPLY_BLOCKED' ? blockedKo(detail) : (blocked ? ((res.control_plane || []).length ? 'Cannot apply because an AI DEV DIRECTOR protected file is in the result: ' + res.control_plane.join(', ') : 'The work copy is missing') : 'Ready to apply to the project'))));
     var rs = document.getElementById('result-sub'); if (rs) rs.setAttribute('data-raw', detail);
     var t = res.tests || {};
-    setText('result-files', ko(I18N.ui, 'changed_files') + ' ' + (res.changed_count === undefined ? '?' : res.changed_count) + '개  (추가 ' + ((res.counts || {}).A || 0) + ' / 수정 ' + ((res.counts || {}).M || 0) + ' / 삭제 ' + ((res.counts || {}).D || 0) + ')');
+    setText('result-files', ko(I18N.ui, 'changed_files') + ' ' + (res.changed_count === undefined ? '?' : res.changed_count) + '  (added ' + ((res.counts || {}).A || 0) + ' / modified ' + ((res.counts || {}).M || 0) + ' / deleted ' + ((res.counts || {}).D || 0) + ')');
     var rf = document.getElementById('result-files'); if (rf) rf.setAttribute('data-raw', 'Changed files: ' + res.changed_count);
     setText('result-tests', ko(I18N.ui, 'tests') + ' ' + (t.post_passed ? ko(I18N.ui, 'pass') : ko(I18N.ui, 'fail')) + '  \u00b7  ' + ko(I18N.ui, 'review') + ' ' + ((t.reviewer || '').toLowerCase() === 'pass' ? ko(I18N.ui, 'pass') : ko(I18N.ui, 'fail')) + '  \u00b7  ' + ko(I18N.ui, 'safety') + ' ' + (t.final_gate === 'PASS' ? ko(I18N.ui, 'pass') : (t.final_gate || '?')));
     if (isCurrent) {
@@ -1732,7 +1732,7 @@ DASHBOARD_JS = r"""
       setText('confirm-title', pendingConfirm === 'apply' ? ko(I18N.ui, 'apply_confirm_title') : ko(I18N.ui, 'discard_confirm_title'));
       var pname = (res.project_path || '').split(/[\\/]/).filter(Boolean).pop() || '';
       setText('confirm-body', pendingConfirm === 'apply'
-        ? ('프로젝트: ' + pname + '\n작업: ' + (res.run_id || '') + '\n변경 파일: ' + res.changed_count + '개\n\n' + ko(I18N.ui, 'apply_confirm_body'))
+        ? ('Project: ' + pname + '\nTask: ' + (res.run_id || '') + '\nChanged files: ' + res.changed_count + '\n\n' + ko(I18N.ui, 'apply_confirm_body'))
         : ko(I18N.ui, 'discard_confirm_body'));
       setText('confirm-ok', pendingConfirm === 'apply' ? ko(I18N.ui, 'apply_confirm_ok') : ko(I18N.ui, 'discard_confirm_ok'));
     }
@@ -1746,7 +1746,7 @@ DASHBOARD_JS = r"""
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
       body: new URLSearchParams({ run_id: runId, request_id: rid }).toString() })
     .then(function (r) { return r.json(); })
-    .then(function (j) { var sk = {applied: '적용 완료', discarded: '폐기 완료', blocked: '적용할 수 없음', rolled_back: '실패 · 복구됨', duplicate: '이미 처리됨', busy: '다른 적용 진행 중'}; setText('result-status', (kind === 'apply' ? '적용: ' : '폐기: ') + (sk[j.status] || j.status || '') + (j.reason ? ' \u2014 ' + j.reason : '') + (j.blocks ? ' \u2014 ' + j.blocks.join('; ') : '') + (j.files ? ' \u2014 ' + j.files.join(', ') : '')); var rst = document.getElementById('result-status'); if (rst) rst.setAttribute('data-raw', (kind === 'apply' ? 'Apply: ' : 'Discard: ') + (j.status || '')); })
+    .then(function (j) { var sk = {applied: 'Applied', discarded: 'Discarded', blocked: 'Cannot apply', rolled_back: 'Failed · restored', duplicate: 'Already handled', busy: 'Another apply is in progress'}; setText('result-status', (kind === 'apply' ? 'Apply: ' : 'Discard: ') + (sk[j.status] || j.status || '') + (j.reason ? ' \u2014 ' + j.reason : '') + (j.blocks ? ' \u2014 ' + j.blocks.join('; ') : '') + (j.files ? ' \u2014 ' + j.files.join(', ') : '')); var rst = document.getElementById('result-status'); if (rst) rst.setAttribute('data-raw', (kind === 'apply' ? 'Apply: ' : 'Discard: ') + (j.status || '')); })
     .catch(function (e) { setText('result-status', 'Request failed: ' + e); })
     .then(function () { resultBusy = false; lastResultKey = ''; pollStatus().then(refreshSelectedResult); pollMessages(); });
   }
@@ -1809,15 +1809,15 @@ DASHBOARD_JS = r"""
   function renderPending(list) {
     list = list || [];
     var key = JSON.stringify(list.map(function (p) { return [p.run_id, p.status, p.title, p.file]; }));
-    setText('pending-count', ko(I18N.ui, 'pending_actions') + ' ' + list.length + '건'); var pc = document.getElementById('pending-count'); if (pc) pc.setAttribute('data-raw', 'PENDING ACTIONS (' + list.length + ')');
+    setText('pending-count', ko(I18N.ui, 'pending_actions') + ' ' + list.length); var pc = document.getElementById('pending-count'); if (pc) pc.setAttribute('data-raw', 'PENDING ACTIONS (' + list.length + ')');
     if (key === lastPendingKey) return;
     lastPendingKey = key;
     var ul = document.getElementById('pending-list'); if (!ul) return;
     while (ul.firstChild) ul.removeChild(ul.firstChild);
     list.forEach(function (p) {
       var li = document.createElement('li'); li.className = 'pend' + (p.run_id === selectedRunId ? ' sel' : '');
-      var a = document.createElement('div'); a.className = 'pname'; a.textContent = p.project_name + (p.status === 'RESUMING' ? ' \u00b7 재개 중' : '');
-      var b = document.createElement('div'); b.className = 'ptitle2'; b.textContent = (p.file ? p.file + ' 변경 승인 필요' : (p.title + ' 승인 필요')) + ' \u00b7 ' + (p.stage === 'POST_BUILD' ? '코드 작성 후' : '작업 시작 전'); b.title = p.title_en || p.title;
+      var a = document.createElement('div'); a.className = 'pname'; a.textContent = p.project_name + (p.status === 'RESUMING' ? ' \u00b7 resuming' : '');
+      var b = document.createElement('div'); b.className = 'ptitle2'; b.textContent = (p.file ? p.file + ' needs approval' : (p.title + ' needs approval')) + ' \u00b7 ' + (p.stage === 'POST_BUILD' ? 'after the code is written' : 'before the task starts'); b.title = p.title_en || p.title;
       var c = document.createElement('div'); c.className = 'prun mono'; c.textContent = p.run_id.slice(0, 26);
       li.appendChild(a); li.appendChild(b); li.appendChild(c);
       li.addEventListener('click', function () { selectedRunId = (selectedRunId === p.run_id) ? null : p.run_id; lastPendingKey = ''; lastApprovalKey = ''; refreshSelectedApproval(); renderPending(list); });
@@ -1833,8 +1833,8 @@ DASHBOARD_JS = r"""
   }
   function retryPromptJs(code, file) {
     var r = (I18N.reasons || {})[code] || {};
-    var loc = file ? (file + '은(는) ') : '';
-    return loc + '수정하지 말고, ' + (r.title || '해당 문제') + ' 부분을 작업 범위에서 제외한 뒤 기존 요청을 다시 계획해줘.';
+    var loc = file ? ('Do not modify ' + file + '. ') : '';
+    return loc + 'Leave ' + (r.title || 'that problem') + ' out of scope and plan the original request again.';
   }
   function renderApproval(ap) {
     ap = ap || { required: false };
@@ -1852,13 +1852,13 @@ DASHBOARD_JS = r"""
     var item = (ap.items && ap.items[0]) || {};
     var block = (ap.blocking && ap.blocking[0]) || {};
     var rk = function (it) { var r = (I18N.reasons || {})[it.code]; return r ? { title: r.title, why: r.why } : { title: it.title || '', why: it.why || '' }; };
-    var hl = ap.required ? ko(I18N.ui, 'human_approval_required') : (ap.rejected ? '사용자가 거절함' : (ap.inflight || ap.approved ? '승인됨 \u00b7 작업 재개 중' : ko(I18N.ui, 'not_approvable')));
+    var hl = ap.required ? ko(I18N.ui, 'human_approval_required') : (ap.rejected ? 'You rejected this' : (ap.inflight || ap.approved ? 'Approved \u00b7 resuming the task' : ko(I18N.ui, 'not_approvable')));
     var ah = document.getElementById('approval-headline'); if (ah) ah.setAttribute('data-raw', ap.headline || '');
     setText('approval-headline', hl + (ap.run_id && ap.run_id !== runInfo.run_id ? ' \u00b7 ' + ap.run_id.slice(0, 22) : ''));
-    setText('approval-stage', ap.stage === 'POST_BUILD' ? '코드 작성 후 검증 단계 (POST-BUILD / VERIFYING)' : (ap.stage === 'ENTRY' ? '작업 시작 전 (ENTRY)' : (ap.stage_label || '')));
-    setText('approval-builder', ap.builder === 'COMPLETED' ? '코드 작성 완료' : (ap.builder === 'NOT RUN' ? '아직 실행 안 됨' : (ap.builder || '')));
+    setText('approval-stage', ap.stage === 'POST_BUILD' ? 'Verification after the code is written (POST-BUILD / VERIFYING)' : (ap.stage === 'ENTRY' ? 'Before the task starts (ENTRY)' : (ap.stage_label || '')));
+    setText('approval-builder', ap.builder === 'COMPLETED' ? 'Code written' : (ap.builder === 'NOT RUN' ? 'Not run yet' : (ap.builder || '')));
     var an = document.getElementById('approval-next'); if (an) an.setAttribute('data-raw', ap.next || '');
-    setText('approval-next', ap.required ? ko(I18N.ui, 'human_required_sub') : (ap.rejected ? '거절됨: 이 작업은 실행되지 않습니다.' : (ap.inflight || ap.approved ? '승인됨: 전체 안전 검사를 거쳐 작업을 계속합니다.' : (ap.state === 'HUMAN_REQUIRED' ? ko(I18N.ui, 'not_approvable_sub') : ''))));
+    setText('approval-next', ap.required ? ko(I18N.ui, 'human_required_sub') : (ap.rejected ? 'Rejected: this task will not run.' : (ap.inflight || ap.approved ? 'Approved: the task continues through the full safety checks.' : (ap.state === 'HUMAN_REQUIRED' ? ko(I18N.ui, 'not_approvable_sub') : ''))));
     setText('approval-reason', item.code ? rk(item).title : ((ap.explain || {}).title || item.title || ''));
     setText('approval-file', (ap.items || []).map(function (i) { return i.file; }).filter(Boolean).join(', ') || (item.file || ''));
     setText('approval-why', item.code ? rk(item).why : ((ap.explain || {}).why || item.why || ''));
@@ -1871,7 +1871,7 @@ DASHBOARD_JS = r"""
       setText('ap-na-desc', bk.title); setText('ap-na-why', bk.why);
       var pr = document.getElementById('ap-na-path-row'); if (pr) pr.style.display = block.file ? '' : 'none';
       setText('ap-na-path', block.file || '');
-      setText('ap-na-reco-text', (I18N.reasons || {})[block.code] ? ((I18N.reasons || {})[block.code].recommendation || '') : 'HEAD에게 다시 요청하거나 상세 정보를 확인하세요.');
+      setText('ap-na-reco-text', (I18N.reasons || {})[block.code] ? ((I18N.reasons || {})[block.code].recommendation || '') : 'Ask HEAD again, or check the details.');
       var rb = document.getElementById('approval-retry-btn'); if (rb) rb.setAttribute('data-prompt', retryPromptJs(block.code, block.file));
     }
   }
@@ -1890,19 +1890,19 @@ DASHBOARD_JS = r"""
     var resReady = res.is_pass && ((res.result || {}).state || 'READY') === 'READY' && !blocked;
     var kind = 'busy', text = '', show = true;
     if (resReady) {
-      kind = 'pass'; text = '결과물을 확인하고 적용 여부를 결정하세요.';
+      kind = 'pass'; text = 'Review the result and decide whether to apply it.';
     } else if (human && apReq) {
       kind = 'approvable';
       var it = (ap.items && ap.items[0]) || {};
-      text = it.file ? (it.file + ' 변경을 확인해주세요.') : '작업 범위를 확인해주세요.';
+      text = it.file ? ('Please confirm the change to ' + it.file + '.') : 'Please confirm the scope.';
     } else if (human && apNonapprovable) {
-      kind = 'nonapprovable'; text = '작업 계획을 수정해야 합니다.';
+      kind = 'nonapprovable'; text = 'The work plan has to be revised.';
     } else if (human) {
-      kind = 'resolved'; text = ap.rejected ? '거절되어 이 작업은 실행되지 않습니다.' : '승인되어 전체 안전 검사를 거쳐 작업을 계속합니다.';
+      kind = 'resolved'; text = ap.rejected ? 'Rejected, so this task will not run.' : 'Approved. The task continues through the full safety checks.';
     } else if (!run || run.state === 'NONE') {
       kind = 'idle'; text = ko(I18N.ui, 'head_ready');
     } else if (run.state === 'FAIL' || run.state === 'TIMEOUT') {
-      kind = 'failed'; text = '작업이 실패했습니다. 새로운 요청을 HEAD 대화창에 보내주세요.';
+      kind = 'failed'; text = 'The task failed. Send a new request in the HEAD chat.';
     } else {
       show = false;
     }
@@ -1926,7 +1926,7 @@ DASHBOARD_JS = r"""
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Accept': 'application/json', 'X-Requested-With': 'fetch' },
       body: new URLSearchParams({ run_id: runId, request_id: rid }).toString() })
     .then(function (r) { return r.json(); })
-    .then(function (j) { setText('approval-result', (kind === 'approve' ? '승인: ' : '거절: ') + (j.status === 'accepted' ? '접수됨' : (j.status === 'ok' ? '완료' : (j.status || ''))) + (j.message ? ' \u2014 ' + j.message : '')); })
+    .then(function (j) { setText('approval-result', (kind === 'approve' ? 'Approve: ' : 'Reject: ') + (j.status === 'accepted' ? 'accepted' : (j.status === 'ok' ? 'done' : (j.status || ''))) + (j.message ? ' \u2014 ' + j.message : '')); })
     .catch(function (e) { setText('approval-result', 'Request failed: ' + e); })
     .then(function () { approvalBusy = false; lastApprovalKey = ''; pollStatus().then(refreshSelectedApproval); pollMessages(); });
   }
@@ -1972,12 +1972,12 @@ DASHBOARD_JS = r"""
   function renderActivity(act) {
     if (!act) return;
     var core = document.getElementById('director-core');
-    if (core) { core.classList.toggle('active', !!act.director); var cs = document.getElementById('core-stage'); if (cs) { cs.setAttribute('data-raw', act.director ? ('ORCHESTRATING \u00b7 ' + (act.stage || '')) : 'IDLE'); } setText('core-stage', act.director ? ('지휘 중 \u00b7 ' + ko(I18N.stage, act.stage === 'BUILDER' ? 'BUILD' : (act.stage === 'REVIEWER' ? 'REVIEW' : (act.stage || '')))) : ko(I18N.state, 'IDLE')); }
+    if (core) { core.classList.toggle('active', !!act.director); var cs = document.getElementById('core-stage'); if (cs) { cs.setAttribute('data-raw', act.director ? ('ORCHESTRATING \u00b7 ' + (act.stage || '')) : 'IDLE'); } setText('core-stage', act.director ? ('Directing \u00b7 ' + ko(I18N.stage, act.stage === 'BUILDER' ? 'BUILD' : (act.stage === 'REVIEWER' ? 'REVIEW' : (act.stage || '')))) : ko(I18N.state, 'IDLE')); }
     Object.keys(act.nodes || {}).forEach(function (dom) {
       var n = act.nodes[dom]; var el = document.getElementById('node-' + dom); if (!el) return;
       el.classList.toggle('active', !!n.active);
       el.classList.toggle('backup', !!n.backup);
-      var ind = document.getElementById('node-' + dom + '-ind'); if (ind) { ind.textContent = n.active ? '작업 중' : (n.backup ? '예비' : ''); ind.setAttribute('data-raw', n.active ? 'ACTIVE' : (n.backup ? 'BACKUP' : '')); }
+      var ind = document.getElementById('node-' + dom + '-ind'); if (ind) { ind.textContent = n.active ? 'Working' : (n.backup ? 'Standby' : ''); ind.setAttribute('data-raw', n.active ? 'ACTIVE' : (n.backup ? 'BACKUP' : '')); }
       var tap = document.getElementById('tap-' + dom); if (tap) tap.classList.toggle('active', !!n.active);
     });
   }
@@ -2011,37 +2011,37 @@ DASHBOARD_JS = r"""
     (items || []).forEach(function (item) {
       var li = document.createElement('li'); li.textContent = formatter(item); el.appendChild(li);
     });
-    if (!(items || []).length) { var li = document.createElement('li'); li.className = 'research-empty'; li.textContent = '아직 기록된 내용이 없습니다.'; el.appendChild(li); }
+    if (!(items || []).length) { var li = document.createElement('li'); li.className = 'research-empty'; li.textContent = 'Nothing recorded yet.'; el.appendChild(li); }
   }
   function renderResearch(r) {
     r = r || {};
-    setText('research-session-id', r.session_id || '없음');
-    setText('research-moonshot', r.moonshot || 'TRIAD 연구 세션이 없습니다.');
+    setText('research-session-id', r.session_id || 'none');
+    setText('research-moonshot', r.moonshot || 'No TRIAD research session.');
     setText('research-cycle', (r.cycle_number || 0) + ' / ' + (r.cycle_budget || 0));
-    setText('research-stage', r.current_stage_ko || r.current_stage || '연구 없음');
+    setText('research-stage', r.current_stage_ko || r.current_stage || 'No research');
     setText('research-status', r.status || 'NONE');
     replaceList('research-proposals', r.proposals, function (p) {
-      return (p.domain || 'AI') + ' · ' + (p.hypothesis || '가설 없음') + (p.confidence === null || p.confidence === undefined ? '' : ' · 신뢰도 ' + p.confidence);
+      return (p.domain || 'AI') + ' · ' + (p.hypothesis || 'No hypothesis') + (p.confidence === null || p.confidence === undefined ? '' : ' · confidence ' + p.confidence);
     });
     replaceList('research-critiques', r.cross_critiques, function (c) {
-      return (c.domain || 'AI') + ' · ' + (c.weakest_assumption || c.logical_flaw || c.self_critique || '비평 기록');
+      return (c.domain || 'AI') + ' · ' + (c.weakest_assumption || c.logical_flaw || c.self_critique || 'Critique');
     });
     var syn = r.synthesis || {};
-    setText('research-synthesis', syn.synthesized_hypothesis || syn.title || '아직 합성된 가설이 없습니다.');
+    setText('research-synthesis', syn.synthesized_hypothesis || syn.title || 'No hypothesis has been synthesized yet.');
     var exp = r.experiment || {};
-    setText('research-experiment', exp.goal || exp.status || '아직 계획된 실험이 없습니다.');
+    setText('research-experiment', exp.goal || exp.status || 'No experiment has been planned yet.');
     var ev = r.evidence || {};
     var evParts = [];
-    if (ev.baseline_state) evParts.push('기준선: ' + ev.baseline_state);
-    if (exp.normal_final_state) evParts.push('실험 검증: ' + exp.normal_final_state);
+    if (ev.baseline_state) evParts.push('Baseline: ' + ev.baseline_state);
+    if (exp.normal_final_state) evParts.push('Experiment check: ' + exp.normal_final_state);
     if (exp.normal_run_id) evParts.push('Run: ' + exp.normal_run_id);
-    setText('research-evidence', evParts.join(' · ') || '아직 검증 증거가 없습니다.');
+    setText('research-evidence', evParts.join(' · ') || 'No verification evidence yet.');
     replaceList('research-rejected', r.rejected_ideas, function (x) { return String(x); });
-    setText('research-learned', r.what_we_learned || '아직 정리된 학습 내용이 없습니다.');
-    setText('research-next', r.next_step || '다음 단계가 정해지지 않았습니다.');
+    setText('research-learned', r.what_we_learned || 'Nothing learned has been written down yet.');
+    setText('research-next', r.next_step || 'The next step is not set.');
     var raw = document.getElementById('research-raw'); if (raw) raw.textContent = JSON.stringify(r, null, 2);
     var badge = document.getElementById('triad-mode-badge');
-    if (badge) { badge.textContent = r.active ? '진행 중' : (r.status === 'MILESTONE_COMPLETE' ? '완료' : '읽기 전용'); badge.className = 'badge ' + (r.active ? 'b-blue' : (r.status === 'MILESTONE_COMPLETE' ? 'b-green' : 'b-muted')); }
+    if (badge) { badge.textContent = r.active ? 'In progress' : (r.status === 'MILESTONE_COMPLETE' ? 'Done' : 'Read only'); badge.className = 'badge ' + (r.active ? 'b-blue' : (r.status === 'MILESTONE_COMPLETE' ? 'b-green' : 'b-muted')); }
   }
   function setDashboardView(mode) {
     var triad = mode === 'TRIAD';
@@ -2083,7 +2083,7 @@ DASHBOARD_JS = r"""
         setText('run-id', j.run.run_id); setText('hdr-run', (j.run.run_id || 'NONE').slice(0, 18));
         runInfo.stage_sentence = j.stage_sentence;
         setStatusCell('run-state', j.run.state, I18N.state);
-        setText('run-created', j.run.created_at || ''); setText('run-human', j.run.human_required === 'YES' ? '예' : '아니오');
+        setText('run-created', j.run.created_at || ''); setText('run-human', j.run.human_required === 'YES' ? 'Yes' : 'No');
         setText('run-details', j.run.details || '');
         renderPipeline(j.run.state, j.run.last_stage); tickElapsed();
         var hr = document.getElementById('hdr-human'); if (hr) { var ht = j.run.human_required === 'YES' ? ko(I18N.ui, 'human_required') : ko(I18N.ui, 'safe'); hr.setAttribute('data-raw', j.run.human_required === 'YES' ? 'HUMAN REQUIRED' : 'SAFE'); if (hr.textContent !== ht) hr.textContent = ht; hr.className = 'badge ' + (j.run.human_required === 'YES' ? 'b-red' : 'b-green'); }
@@ -2095,7 +2095,7 @@ DASHBOARD_JS = r"""
           var apxBlock = (apx.blocking && apx.blocking[0]) || {};
           var alertText = j.run.human_required === 'YES'
             ? (apx.required ? ('\u26a0 ' + ko(I18N.ui, 'human_approval_required') + ' ' + ((it.code && (I18N.reasons || {})[it.code]) ? I18N.reasons[it.code].title : (it.title || '')) + (it.file ? ' (' + it.file + ')' : ''))
-              : apxNonapprovable ? ('\u26a0 작업 계획 수정 필요 · ' + ((apxBlock.code && (I18N.reasons || {})[apxBlock.code]) ? I18N.reasons[apxBlock.code].why : ((apx.explain || {}).why || (apx.explain || {}).title || j.run.details || j.run.run_id)))
+              : apxNonapprovable ? ('\u26a0 The work plan needs a revision · ' + ((apxBlock.code && (I18N.reasons || {})[apxBlock.code]) ? I18N.reasons[apxBlock.code].why : ((apx.explain || {}).why || (apx.explain || {}).title || j.run.details || j.run.run_id)))
               : ('\u26a0 ' + ko(I18N.ui, 'human_required')))
             : ko(I18N.ui, 'safe_no_action');
           ab.setAttribute('data-raw', j.run.human_required === 'YES' ? ('HUMAN REQUIRED \u2014 ' + (j.run.details || '')) : 'SAFE / NO ACTION REQUIRED');
@@ -2112,7 +2112,7 @@ DASHBOARD_JS = r"""
       var cvr = document.getElementById('chat-view-result-btn'); if (cvr) cvr.style.display = (j.result && j.result.is_pass && ((j.result.result || {}).state || 'READY') === 'READY') ? '' : 'none';
       if (selectedRunId) refreshSelectedApproval();
       var sw = document.getElementById('stale-warning');
-      if (sw) { var n = (j.stale_runs || []).length; var st = n ? ('STALE RUN' + ' DETECTED (' + n + ') \u00b7 오래 멈춘 작업') : ''; if (sw.textContent !== st) sw.textContent = st; var sd = document.getElementById('stale-details'); if (sd) sd.style.display = n ? '' : 'none'; }
+      if (sw) { var n = (j.stale_runs || []).length; var st = n ? ('STALE RUN' + ' DETECTED (' + n + ') \u00b7 task stalled for a long time') : ''; if (sw.textContent !== st) sw.textContent = st; var sd = document.getElementById('stale-details'); if (sd) sd.style.display = n ? '' : 'none'; }
       var sl = document.getElementById('stale-list');
       if (sl) {
         var wantL = (j.stale_runs || []).map(function (r) { return r.run_id + ' \u00b7 ' + r.state + ' \u00b7 ' + (r.updated_at || ''); });
@@ -2534,7 +2534,7 @@ def render_html():
         mode_sentence = st.get("system_mode_sentence") or ""
         run_label_ko = I18N.state_ko(run_state) + (f" \u00b7 {elapsed}" if elapsed else "")
         stage_map = {"HEAD": "HEAD", "BUILDER": "BUILD", "REVIEWER": "REVIEW", "VERIFY": "VERIFY"}
-        core_stage_ko = ("지휘 중 \u00b7 " + I18N.STAGE_TEXT.get(stage_map.get(act.get("stage") or "", ""), act.get("stage") or "")) if act.get("director") else I18N.state_ko("IDLE")
+        core_stage_ko = ("Directing \u00b7 " + I18N.STAGE_TEXT.get(stage_map.get(act.get("stage") or "", ""), act.get("stage") or "")) if act.get("director") else I18N.state_ko("IDLE")
         chat_badge_ko = {"HEAD is working...": I18N.t("head_working"), "HUMAN_REQUIRED": I18N.t("human_required"), "READY": I18N.result_ko("READY")}.get(chat_badge, chat_badge)
         ap = st.get("approval") or {"required": False}
         ap_item = (ap.get("items") or [{}])[0] if ap.get("items") else {}
@@ -2554,7 +2554,7 @@ def render_html():
 
         def _res_row(p):
             return (f"<li class='pend res'><div class='pname'>{html_lib.escape(p['project_name'])}</div>"
-                    f"<div class='ptitle2 blue'>{I18N.t('pass')} \u00b7 {I18N.t('changed_files')} {p.get('changed_count')}\uac1c \u00b7 {I18N.result_ko('READY')}</div>"
+                    f"<div class='ptitle2 blue'>{I18N.t('pass')} \u00b7 {I18N.t('changed_files')} {p.get('changed_count')} \u00b7 {I18N.result_ko('READY')}</div>"
                     f"<div class='prun mono'>{html_lib.escape(p['run_id'][:26])}</div></li>")
 
         results_head = results[:3]
@@ -2595,17 +2595,17 @@ def render_html():
         ap_code = html_lib.escape(_ap_first.get("code") or _explain["code"])
         ap_reason_ko = html_lib.escape(I18N.reason_ko(_ap_first.get("code", ""))[0] if _ap_first else _explain["title"])
         ap_why_ko = html_lib.escape(I18N.reason_ko(_ap_first.get("code", ""))[1] if _ap_first else _explain["why"])
-        ap_headline_ko = html_lib.escape(I18N.t("human_approval_required") if ap.get("required") else ("사용자가 거절함" if ap.get("rejected") else ("승인됨 \u00b7 작업 재개 중" if (ap.get("inflight") or ap.get("approved")) else (I18N.t("not_approvable") if ap_show else ""))))
-        ap_next_ko = html_lib.escape(I18N.t("human_required_sub") if ap.get("required") else ("거절됨: 이 작업은 실행되지 않습니다." if ap.get("rejected") else ("승인됨: 전체 안전 검사를 거쳐 작업을 계속합니다." if (ap.get("inflight") or ap.get("approved")) else (I18N.t("not_approvable_sub") if ap_show else ""))))
-        ap_stage_ko = {"ENTRY": "작업 시작 전 (ENTRY)", "POST_BUILD": "코드 작성 후 검증 단계 (POST-BUILD / VERIFYING)"}.get(ap.get("stage") or "", html_lib.escape(ap.get("stage_label") or ""))
-        ap_builder_ko = {"COMPLETED": "코드 작성 완료", "NOT RUN": "아직 실행 안 됨"}.get(ap.get("builder") or "", html_lib.escape(ap.get("builder") or ""))
+        ap_headline_ko = html_lib.escape(I18N.t("human_approval_required") if ap.get("required") else ("You rejected this" if ap.get("rejected") else ("Approved \u00b7 resuming the task" if (ap.get("inflight") or ap.get("approved")) else (I18N.t("not_approvable") if ap_show else ""))))
+        ap_next_ko = html_lib.escape(I18N.t("human_required_sub") if ap.get("required") else ("Rejected: this task will not run." if ap.get("rejected") else ("Approved: the task continues through the full safety checks." if (ap.get("inflight") or ap.get("approved")) else (I18N.t("not_approvable_sub") if ap_show else ""))))
+        ap_stage_ko = {"ENTRY": "Before the task starts (ENTRY)", "POST_BUILD": "Verification after the code is written (POST-BUILD / VERIFYING)"}.get(ap.get("stage") or "", html_lib.escape(ap.get("stage_label") or ""))
+        ap_builder_ko = {"COMPLETED": "Code written", "NOT RUN": "Not run yet"}.get(ap.get("builder") or "", html_lib.escape(ap.get("builder") or ""))
         r_headline_ko = {"RESULT APPLIED \u2713": I18N.t("result_applied"), "RESULT DISCARDED": I18N.t("result_discarded"), "APPLY BLOCKED": I18N.t("apply_blocked"), "RESULT READY": I18N.t("result_ready")}.get(r_headline, r_headline)
         _rdetail = (res.get("result") or {}).get("detail") or ""
         _rcode = I18N.reason_code(_rdetail)
-        r_sub_ko = html_lib.escape({"APPLIED": "프로젝트가 업데이트되었습니다 \u00b7 테스트 통과", "DISCARDED": "원본 프로젝트는 변경되지 않았습니다 \u00b7 검증 증거 보존"}.get(r_state,
-                   (I18N.reason_ko(_rcode)[1] + f" (상세 코드: {_rcode})") if (r_state in ("APPLY_BLOCKED",) or "ROLLED_BACK" in r_state) and _rcode != "UNKNOWN" else
-                   ("AI DEV DIRECTOR 보호 파일이 결과에 포함되어 적용할 수 없습니다" if res.get("control_plane") else ("프로젝트에 적용할 준비가 되었습니다" if r_state == "READY" and not r_blocked else _rdetail))))
-        r_files_ko = (f"{I18N.t('changed_files')} {res.get('changed_count', 0)}개  (추가 {cnt.get('A', 0)} / 수정 {cnt.get('M', 0)} / 삭제 {cnt.get('D', 0)})") if res.get("is_pass") else ""
+        r_sub_ko = html_lib.escape({"APPLIED": "The project was updated \u00b7 tests passed", "DISCARDED": "The original project was not changed \u00b7 evidence kept"}.get(r_state,
+                   (I18N.reason_ko(_rcode)[1] + f" (code: {_rcode})") if (r_state in ("APPLY_BLOCKED",) or "ROLLED_BACK" in r_state) and _rcode != "UNKNOWN" else
+                   ("Cannot apply because an AI DEV DIRECTOR protected file is in the result" if res.get("control_plane") else ("Ready to apply to the project" if r_state == "READY" and not r_blocked else _rdetail))))
+        r_files_ko = (f"{I18N.t('changed_files')} {res.get('changed_count', 0)}  (added {cnt.get('A', 0)} / modified {cnt.get('M', 0)} / deleted {cnt.get('D', 0)})") if res.get("is_pass") else ""
         r_tests_ko = (f"{I18N.t('tests')} {I18N.t('pass') if rt.get('post_passed') else I18N.t('fail')}  \u00b7  {I18N.t('review')} {I18N.t('pass') if str(rt.get('reviewer') or '').lower() == 'pass' else I18N.t('fail')}  \u00b7  {I18N.t('safety')} {I18N.t('pass') if rt.get('final_gate') == 'PASS' else (rt.get('final_gate') or '?')}") if res.get("is_pass") else ""
         r_state_label_ko = (I18N.t("result_state") + ": " + (I18N.t("apply_blocked") if (r_state == "READY" and r_blocked) else I18N.result_ko(r_state))) if res.get("is_pass") else ""
         _alert_explain = I18N.explain_reason(run.get("details") or "")
@@ -2622,25 +2622,25 @@ def render_html():
         ap_na_reco_ko = html_lib.escape(I18N.reason_recommendation(_ap_block_code))
         ap_retry_prompt = html_lib.escape(I18N.retry_prompt(_ap_block_code, _ap_block.get("file") or ""))
         alert_text_ko = ("\u26a0 " + I18N.t("human_approval_required") + " " + (I18N.reason_ko(_ap_first.get("code", ""))[0] if _ap_first else "") + ((" (" + _ap_first.get("file") + ")") if _ap_first.get("file") else "")) if (human and ap.get("required")) else \
-                        (("\u26a0 \uc791\uc5c5 \uacc4\ud68d \uc218\uc815 \ud544\uc694 \u00b7 " + ap_na_why_ko) if (human and ap_nonapprovable) else
+                        (("\u26a0 The work plan needs a change \u00b7 " + ap_na_why_ko) if (human and ap_nonapprovable) else
                          (("\u26a0 " + I18N.t("human_required")) if human else I18N.t("safe_no_action")))
 
         # "\ub0b4\uac00 \ud560 \uc77c" - one glance, one next action, specific to the CURRENT run only
         if res.get("is_pass") and r_state == "READY" and not r_blocked:
-            todo_kind, todo_text_ko = "pass", "\uacb0\uacfc\ubb3c\uc744 \ud655\uc778\ud558\uace0 \uc801\uc6a9 \uc5ec\ubd80\ub97c \uacb0\uc815\ud558\uc138\uc694."
+            todo_kind, todo_text_ko = "pass", "Check the result and decide whether to apply it."
         elif human and ap.get("required"):
             todo_kind = "approvable"
             _tf = _ap_first.get("file") if _ap_first else ""
-            todo_text_ko = (f"{html_lib.escape(_tf)} \ubcc0\uacbd\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694." if _tf else "\uc791\uc5c5 \ubc94\uc704\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694.")
+            todo_text_ko = (f"Check the change to {html_lib.escape(_tf)}." if _tf else "Check the scope of the work.")
         elif human and ap_nonapprovable:
-            todo_kind, todo_text_ko = "nonapprovable", "\uc791\uc5c5 \uacc4\ud68d\uc744 \uc218\uc815\ud574\uc57c \ud569\ub2c8\ub2e4."
+            todo_kind, todo_text_ko = "nonapprovable", "The work plan has to be revised."
         elif human:
             todo_kind = "resolved"
-            todo_text_ko = "\uac70\uc808\ub418\uc5b4 \uc774 \uc791\uc5c5\uc740 \uc2e4\ud589\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4." if ap.get("rejected") else "\uc2b9\uc778\ub418\uc5b4 \uc804\uccb4 \uc548\uc804 \uac80\uc0ac\ub97c \uac70\uccd0 \uc791\uc5c5\uc744 \uacc4\uc18d\ud569\ub2c8\ub2e4."
+            todo_text_ko = "This was declined, so the work will not run." if ap.get("rejected") else "Approved. The work continues through the full safety check."
         elif run_state in ("NONE",):
             todo_kind, todo_text_ko = "idle", I18N.t("head_ready")
         elif run_state in ("FAIL", "TIMEOUT"):
-            todo_kind, todo_text_ko = "failed", "\uc791\uc5c5\uc774 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4. \uc0c8\ub85c\uc6b4 \uc694\uccad\uc744 HEAD \ub300\ud654\ucc3d\uc5d0 \ubcf4\ub0b4\uc8fc\uc138\uc694."
+            todo_kind, todo_text_ko = "failed", "The work failed. Send a new request in the HEAD chat."
         else:
             todo_kind, todo_text_ko = "busy", ""
         todo_style = "display:none;" if todo_kind == "busy" else ""
@@ -2656,25 +2656,25 @@ def render_html():
         research = st.get("research") or {}
         research_proposals_html = "".join(
             f"<li>{html_lib.escape(str(p.get('domain') or 'AI'))} · "
-            f"{html_lib.escape(str(p.get('hypothesis') or '가설 없음'))}</li>"
+            f"{html_lib.escape(str(p.get('hypothesis') or 'No hypothesis'))}</li>"
             for p in (research.get("proposals") or [])
-        ) or "<li class='research-empty'>아직 기록된 내용이 없습니다.</li>"
+        ) or "<li class='research-empty'>Nothing recorded yet.</li>"
         research_critiques_html = "".join(
             f"<li>{html_lib.escape(str(c.get('domain') or 'AI'))} · "
-            f"{html_lib.escape(str(c.get('weakest_assumption') or c.get('logical_flaw') or c.get('self_critique') or '비평 기록'))}</li>"
+            f"{html_lib.escape(str(c.get('weakest_assumption') or c.get('logical_flaw') or c.get('self_critique') or 'Critique'))}</li>"
             for c in (research.get("cross_critiques") or [])
-        ) or "<li class='research-empty'>아직 기록된 내용이 없습니다.</li>"
+        ) or "<li class='research-empty'>Nothing recorded yet.</li>"
         research_rejected_html = "".join(
             f"<li>{html_lib.escape(str(x))}</li>" for x in (research.get("rejected_ideas") or [])
-        ) or "<li class='research-empty'>아직 기록된 내용이 없습니다.</li>"
+        ) or "<li class='research-empty'>Nothing recorded yet.</li>"
         _rsyn = research.get("synthesis") or {}
         _rexp = research.get("experiment") or {}
         _rev = research.get("evidence") or {}
         _research_evidence_parts = []
         if _rev.get("baseline_state"):
-            _research_evidence_parts.append("기준선: " + str(_rev["baseline_state"]))
+            _research_evidence_parts.append("Baseline: " + str(_rev["baseline_state"]))
         if _rexp.get("normal_final_state"):
-            _research_evidence_parts.append("실험 검증: " + str(_rexp["normal_final_state"]))
+            _research_evidence_parts.append("Experiment check: " + str(_rexp["normal_final_state"]))
         if _rexp.get("normal_run_id"):
             _research_evidence_parts.append("Run: " + str(_rexp["normal_run_id"]))
         research_raw = html_lib.escape(json.dumps(research, ensure_ascii=False, indent=2))
@@ -2698,7 +2698,7 @@ def render_html():
         <span class="sep">|</span>
         <span id="hdr-human" class="badge {'b-red' if human else 'b-green'}" data-raw="{'HUMAN REQUIRED' if human else 'SAFE'}">{I18N.t("human_required") if human else I18N.t("safe")}</span>
         <span class="lbl" style="margin-left:8px;">{I18N.t("my_todo")}</span><span id="todo-line" style="color:var(--amber);">{html_lib.escape(st.get("todo") or "")}</span>
-        <span id="mode-switch"><button id="normal-mode-btn" type="button" class="ghost on">NORMAL</button><button id="triad-mode-btn" type="button" class="ghost">TRIAD 연구</button></span>
+        <span id="mode-switch"><button id="normal-mode-btn" type="button" class="ghost on">NORMAL</button><button id="triad-mode-btn" type="button" class="ghost">TRIAD research</button></span>
         <button id="refresh-btn" type="button" class="ghost">{I18N.t("refresh_providers")}</button>
     </div>
 
@@ -2723,7 +2723,7 @@ def render_html():
             latency = f'{pr["latency"]}s' if pr["latency"] else "--"
             html += f"""                <div class="{ncls}" id="node-{name}">
                     <div class="tap{' active' if node.get('active') else ''}" id="tap-{name}"></div>
-                    <div class="ntitle"><span class="nname">{NODE_NAMES[name]}</span><span class="vendor">{I18N.PROVIDER_LABEL[name][1]}</span><span class="ind" id="node-{name}-ind" data-raw="{ind}">{ {"ACTIVE": "작업 중", "BACKUP": "예비"}.get(ind, "") }</span>
+                    <div class="ntitle"><span class="nname">{NODE_NAMES[name]}</span><span class="vendor">{I18N.PROVIDER_LABEL[name][1]}</span><span class="ind" id="node-{name}-ind" data-raw="{ind}">{ {"ACTIVE": "Working", "BACKUP": "Standby"}.get(ind, "") }</span>
                     <details><summary>{I18N.t("details")}</summary><div class="dbox">
                         <div>{I18N.t("quota")}: <span id="prov-{name}-usage">{html_lib.escape(pr["usage"])}</span></div>
                         <div>{I18N.t("version")}: <span id="prov-{name}-version">{html_lib.escape(pr["version"])}</span></div>
@@ -2743,30 +2743,30 @@ def render_html():
 
     <section id="triad-research-center" aria-label="TRIAD Research Center">
         <div class="panel research-hero">
-            <div><h2>TRIAD RESEARCH CENTER <span id="triad-mode-badge" class="badge {'b-blue' if research.get('active') else 'b-muted'}">{'진행 중' if research.get('active') else '읽기 전용'}</span></h2>
-                <div class="research-moonshot" id="research-moonshot">{html_lib.escape(str(research.get('moonshot') or 'TRIAD 연구 세션이 없습니다.'))}</div>
+            <div><h2>TRIAD RESEARCH CENTER <span id="triad-mode-badge" class="badge {'b-blue' if research.get('active') else 'b-muted'}">{'In progress' if research.get('active') else 'Read only'}</span></h2>
+                <div class="research-moonshot" id="research-moonshot">{html_lib.escape(str(research.get('moonshot') or 'No TRIAD research session.'))}</div>
             </div>
             <div class="research-meta">
-                <span>세션 <b class="mono" id="research-session-id">{html_lib.escape(str(research.get('session_id') or '없음'))}</b></span>
-                <span>사이클 <b id="research-cycle">{int(research.get('cycle_number') or 0)} / {int(research.get('cycle_budget') or 0)}</b></span>
-                <span>단계 <b id="research-stage">{html_lib.escape(str(research.get('current_stage_ko') or '연구 없음'))}</b></span>
-                <span>상태 <b class="mono" id="research-status">{html_lib.escape(str(research.get('status') or 'NONE'))}</b></span>
+                <span>Session <b class="mono" id="research-session-id">{html_lib.escape(str(research.get('session_id') or 'none'))}</b></span>
+                <span>Cycle <b id="research-cycle">{int(research.get('cycle_number') or 0)} / {int(research.get('cycle_budget') or 0)}</b></span>
+                <span>Stage <b id="research-stage">{html_lib.escape(str(research.get('current_stage_ko') or 'No research'))}</b></span>
+                <span>Status <b class="mono" id="research-status">{html_lib.escape(str(research.get('status') or 'NONE'))}</b></span>
             </div>
         </div>
         <div class="panel research-column">
-            <div class="research-card"><h3>3개 독립 제안</h3><ul id="research-proposals">{research_proposals_html}</ul></div>
-            <div class="research-card"><h3>교차 비평</h3><ul id="research-critiques">{research_critiques_html}</ul></div>
-            <div class="research-card"><h3>합성 가설</h3><p id="research-synthesis">{html_lib.escape(str(_rsyn.get('synthesized_hypothesis') or _rsyn.get('title') or '아직 합성된 가설이 없습니다.'))}</p></div>
+            <div class="research-card"><h3>3 independent proposals</h3><ul id="research-proposals">{research_proposals_html}</ul></div>
+            <div class="research-card"><h3>Cross-critique</h3><ul id="research-critiques">{research_critiques_html}</ul></div>
+            <div class="research-card"><h3>Synthesized hypothesis</h3><p id="research-synthesis">{html_lib.escape(str(_rsyn.get('synthesized_hypothesis') or _rsyn.get('title') or 'No hypothesis has been synthesized yet.'))}</p></div>
         </div>
         <div class="panel research-column">
-            <div class="research-card"><h3>실험</h3><p id="research-experiment">{html_lib.escape(str(_rexp.get('goal') or _rexp.get('status') or '아직 계획된 실험이 없습니다.'))}</p></div>
-            <div class="research-card"><h3>증거</h3><p id="research-evidence">{html_lib.escape(' · '.join(_research_evidence_parts) or '아직 검증 증거가 없습니다.')}</p></div>
-            <div class="research-card"><h3>기각된 아이디어</h3><ul id="research-rejected">{research_rejected_html}</ul></div>
+            <div class="research-card"><h3>Experiment</h3><p id="research-experiment">{html_lib.escape(str(_rexp.get('goal') or _rexp.get('status') or 'No experiment has been planned yet.'))}</p></div>
+            <div class="research-card"><h3>Evidence</h3><p id="research-evidence">{html_lib.escape(' · '.join(_research_evidence_parts) or 'No verification evidence yet.')}</p></div>
+            <div class="research-card"><h3>Rejected ideas</h3><ul id="research-rejected">{research_rejected_html}</ul></div>
         </div>
         <div class="panel research-column">
-            <div class="research-card"><h3>배운 점</h3><p id="research-learned">{html_lib.escape(str(research.get('what_we_learned') or '아직 정리된 학습 내용이 없습니다.'))}</p></div>
-            <div class="research-card"><h3>다음 단계</h3><p id="research-next">{html_lib.escape(str(research.get('next_step') or '다음 단계가 정해지지 않았습니다.'))}</p></div>
-            <details class="research-card"><summary>원시 JSON · provenance · 실행 정보</summary><pre id="research-raw">{research_raw}</pre></details>
+            <div class="research-card"><h3>What we learned</h3><p id="research-learned">{html_lib.escape(str(research.get('what_we_learned') or 'Nothing learned has been written down yet.'))}</p></div>
+            <div class="research-card"><h3>Next step</h3><p id="research-next">{html_lib.escape(str(research.get('next_step') or 'The next step is not set.'))}</p></div>
+            <details class="research-card"><summary>Raw JSON · provenance · run info</summary><pre id="research-raw">{research_raw}</pre></details>
         </div>
     </section>
 
@@ -2777,7 +2777,7 @@ def render_html():
             <div id="project-path" class="proj-path mono">{html_lib.escape(project_path)}</div>
             <div style="margin-top:6px;"><button id="project-change" type="button" class="ghost">{I18N.t("change")}</button></div>
             <form id="project-form" method="POST" action="/project" accept-charset="utf-8" style="{'display:none;' if project_path else ''}">
-                <input type="text" id="project-input" name="path" placeholder="git 저장소의 절대 경로" />
+                <input type="text" id="project-input" name="path" placeholder="Absolute path of a git repository" />
                 <button type="submit" id="project-btn">{I18N.t("select_project")}</button>
                 <div id="project-result" style="color:var(--amber); font-size:11px; margin-top:4px;"></div>
             </form>
@@ -2790,15 +2790,15 @@ def render_html():
                 <div>{html_lib.escape(I18N.HELP_TEXT["RECOVERING"])}</div>
             </details>
             <div id="results-panel" class="pendbox {'has' if results else 'none'}">
-                <div id="results-count" data-raw="RESULTS ({len(results)})">{I18N.t("results")} {len(results)}건</div>
+                <div id="results-count" data-raw="RESULTS ({len(results)})">{I18N.t("results")} {len(results)}</div>
                 <ul id="results-list">{results_html}</ul>
                 <div id="results-more-row" style="{'' if results_rest_count else 'display:none;'}">
-                    <button type="button" id="results-more-btn" class="ghost">나머지 {results_rest_count}건 보기</button>
+                    <button type="button" id="results-more-btn" class="ghost">Show {results_rest_count} more</button>
                 </div>
                 <div id="results-grouped" style="display:none;">{results_grouped_html}</div>
             </div>
             <div id="pending-panel" class="pendbox {'has' if pending else 'none'}">
-                <div id="pending-count" data-raw="PENDING ACTIONS ({len(pending)})">{I18N.t("pending_actions")} {len(pending)}건</div>
+                <div id="pending-count" data-raw="PENDING ACTIONS ({len(pending)})">{I18N.t("pending_actions")} {len(pending)}</div>
                 <ul id="pending-list">{pending_html}</ul>
             </div>
             <details id="stale-details" style="margin-top:14px;{stale_style}">
@@ -2835,7 +2835,7 @@ def render_html():
 
         <div class="panel" id="right">
             <h2>{I18N.t("current_run")} <span id="run-label" class="status-{run_state}" data-raw="{run_state}">{run_label_ko}</span><span id="pipeline-badge" class="badge b-muted" style="display:none;"></span><span id="run-result-state" data-raw="{r_state_label}">{r_state_label_ko}</span></h2>
-            <div id="stage-sentence" class="stage-sentence">{html_lib.escape(st.get("stage_sentence") or "")}</div><div id="next-step" class="next-step">{("다음 단계: " + st["next_step"]) if st.get("next_step") else ""}</div>
+            <div id="stage-sentence" class="stage-sentence">{html_lib.escape(st.get("stage_sentence") or "")}</div><div id="next-step" class="next-step">{("Next: " + st["next_step"]) if st.get("next_step") else ""}</div>
             <div id="run-todo-box" class="todobox {todo_kind}" style="{todo_style}">
                 <div class="tt">{I18N.t("my_todo")}</div>
                 <div id="run-todo-text">{todo_text_ko}</div>
@@ -2844,7 +2844,7 @@ def render_html():
                     <button type="button" id="todo-approve-btn" class="approve" style="{'' if todo_kind == 'approvable' else 'display:none;'}">{I18N.t("approve_resume")}</button>
                     <button type="button" id="todo-reject-btn" class="reject" style="{'' if todo_kind == 'approvable' else 'display:none;'}">{I18N.t("reject")}</button>
                     <button type="button" id="todo-view-result-btn" class="ghost" style="{'' if todo_kind == 'pass' else 'display:none;'}">{I18N.t("view_result")}</button>
-                    <button type="button" id="todo-retry-btn" class="ghost" data-prompt="{ap_retry_prompt}" style="{'' if todo_kind == 'nonapprovable' else 'display:none;'}">HEAD\uc5d0\uac8c \ub2e4\uc2dc \uc694\uccad</button>
+                    <button type="button" id="todo-retry-btn" class="ghost" data-prompt="{ap_retry_prompt}" style="{'' if todo_kind == 'nonapprovable' else 'display:none;'}">Ask HEAD again</button>
                     <button type="button" id="todo-details-btn" class="ghost" style="{'' if todo_kind == 'nonapprovable' else 'display:none;'}">{I18N.t("details")}</button>
                 </div>
             </div>
@@ -2859,7 +2859,7 @@ def render_html():
                 <span class="k">{I18N.t("state")}</span><span class="v status-{run_state}" id="run-state" data-raw="{run_state}">{I18N.state_ko(run_state)}</span>
                 <span class="k">{I18N.t("run_id")}</span><span class="v mono" id="run-id" title="{html_lib.escape(str(run["run_id"]))}">{html_lib.escape(str(run["run_id"]))}</span>
                 <span class="k">{I18N.t("elapsed")}</span><span class="v" id="run-elapsed">{elapsed}</span>
-                <span class="k" title="{I18N.t("human_required")}">확인 필요</span><span class="v" id="run-human" data-raw="{run["human_required"]}">{"예" if run["human_required"] == "YES" else "아니오"}</span>
+                <span class="k" title="{I18N.t("human_required")}">Needs you</span><span class="v" id="run-human" data-raw="{run["human_required"]}">{"Yes" if run["human_required"] == "YES" else "No"}</span>
                 <span class="k">{I18N.t("started")}</span><span class="v mono" id="run-created">{html_lib.escape(str(run["created_at"]))}</span>
             </div>
             <div id="approval-card" class="approval {ap_cls}" style="{ap_style}">
@@ -2880,11 +2880,11 @@ def render_html():
                 <div id="approval-nonapprovable" style="{ap_nonapprovable_style}">
                     <div id="ap-na-desc">{ap_na_desc_ko}</div>
                     <div id="ap-na-why">{ap_na_why_ko}</div>
-                    <div id="ap-na-path-row" style="{ap_path_style}"><span class="ak">문제가 된 경로:</span> <span id="ap-na-path" class="mono">{ap_block_file}</span></div>
-                    <div id="ap-na-blocked">이 작업은 승인으로 계속할 수 없습니다.</div>
-                    <div id="ap-na-reco"><span class="ak">권장 조치:</span> <span id="ap-na-reco-text">{ap_na_reco_ko}</span></div>
+                    <div id="ap-na-path-row" style="{ap_path_style}"><span class="ak">Path:</span> <span id="ap-na-path" class="mono">{ap_block_file}</span></div>
+                    <div id="ap-na-blocked">Approval cannot continue this task.</div>
+                    <div id="ap-na-reco"><span class="ak">Recommended action:</span> <span id="ap-na-reco-text">{ap_na_reco_ko}</span></div>
                     <div class="abtns">
-                        <button type="button" id="approval-retry-btn" class="ghost" data-prompt="{ap_retry_prompt}">HEAD에게 다시 요청</button>
+                        <button type="button" id="approval-retry-btn" class="ghost" data-prompt="{ap_retry_prompt}">Ask HEAD again</button>
                         <button type="button" id="approval-details-btn" class="ghost">{I18N.t("details")}</button>
                     </div>
                 </div>
@@ -2895,7 +2895,7 @@ def render_html():
                 <summary>{I18N.t("details")}</summary>
                 <div id="run-details">{html_lib.escape(run.get("details") or "")}</div>
                 <details id="inspect-panel"><summary>{I18N.t("inspect")} (read-only)</summary><pre id="inspect-body"></pre></details>
-                <div>실행 역할은 상단 AI 카드에서 확인하세요. 역할 변경 버튼의 배정은 다음 대화/작업부터 적용됩니다.</div>
+                <div>The running roles are on the AI cards above. A role change applies to the next chat or task.</div>
             </details>
         </div>
     </div>
