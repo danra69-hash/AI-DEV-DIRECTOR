@@ -2,7 +2,7 @@
 
 2026-09-14. 기본 설정: Claude HEAD → Antigravity Builder → 자동 검사 → Codex Reviewer → Claude HEAD.
 
-HEAD는 목표를 ORDER로 만들고 구현상의 선택을 맡는다. Builder는 변경 파일의 전체 내용을 JSON으로 제출한다. Director는 모든 제출 경로를 먼저 검사하고 격리 작업본에 반영한다. 기존 보호 패턴은 Python Scope Guard가 처리하므로 Antigravity 네이티브 경로 권한으로 변환할 필요가 없다. Antigravity 호출은 별도 임시 저장소에서 수행하며 업무 저장소를 CLI 작업 디렉터리로 주지 않는다. CLI는 제공된 텍스트에서 구현하며 실제 파일 반영은 Director가 담당한다.
+HEAD는 목표를 ORDER로 만들고 구현상의 선택을 맡긴다. Builder는 변경 파일의 전체 내용을 JSON으로 제출한다. Director는 모든 제출 경로를 먼저 검사하고 격리 작업본에 반영한다. 기존 보호 패턴은 Python Scope Guard가 처리하므로 Antigravity 네이티브 경로 권한으로 변환할 필요가 없다. Antigravity 호출은 별도 임시 저장소에서 수행하며 업무 저장소를 CLI 작업 디렉터리로 주지 않는다. CLI는 제공된 텍스트에서 구현하며 실제 파일 반영은 Director가 담당한다.
 
 자동 테스트가 실패해도 바로 종료하지 않고 Reviewer와 HEAD에 전달한다. HEAD의 FAIL 및 next_steps가 수정 지시가 되며 같은 작업본에서 BUILDING으로 돌아간다. 기본 최대 수정 3회. 라운드별 리뷰·테스트·HEAD 판단은 repair_history.json에 보존한다. 최종 PASS 조건은 기존 검증과 독립 리뷰를 그대로 사용한다.
 
@@ -30,4 +30,4 @@ HEAD 프롬프트에 수정 지시와 원래 승인 조건의 일치 확인을 �
 
 후속 실행 `RUN-260914224130-E7203CB1857045DEB6F63A058801A2F7`은 2026-09-14 22:46 최종 PASS. Claude HEAD의 실제 계획, Antigravity 실제 구현, Director의 실제 pytest 실행(기존 30개 → 34개 통과), Codex 독립 리뷰(pass, P0/P1/P2 없음), HEAD 최종 PASS와 Director 최종 증거 게이트를 확인했다. HEAD/Reviewer는 읽기 전용 검수이며 전체 테스트 실행은 Director가 담당했다. 후속 실행은 추가 수정 라운드 없이 통과했고, 앞선 실행에서 자동 수정 루프 3회가 실증되었다.
 
-산출물: `<demo-project>\\.director_worktrees\\RUN-260914224130-E7203CB1857045DEB6F63A058801A2F7\\src\\expense_summary.py`. `--csv <demo-project>\\example.csv` 직접 실행에서 Food=13.00, Books=20.00, grand_total=33.00, 종료 코드 0을 확인했다. 원본 프로젝트에 최종 결과를 자동 반영하지 않았으므로 실행에는 위 작업본 경로를 사용한다. 기존 the trading sample project 실행을 완료했다는 의미는 아니다.
+산출물: `<demo-project>\.director_worktrees\RUN-260914224130-E7203CB1857045DEB6F63A058801A2F7\src\expense_summary.py`. `--csv <demo-project>\example.csv` 직접 실행에서 Food=13.00, Books=20.00, grand_total=33.00, 종료 코드 0을 확인했다. 원본 프로젝트에 최종 결과를 자동 반영하지 않았으므로 실행에는 위 작업본 경로를 사용한다. 기존 the trading sample project 실행을 완료했다는 의미는 아니다.
