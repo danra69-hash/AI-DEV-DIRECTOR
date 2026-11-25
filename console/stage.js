@@ -62,9 +62,18 @@ function openRoleMenu(label){
   for(const p of ['ANTHROPIC','GOOGLE','OPENAI']){
     const b=el('button',AI[p].name),cur=roleSettings[key]===CLI_OF[p],other=ROLES.find(r=>roleSettings[r.toLowerCase()]===CLI_OF[p]);
     b.type='button';b.setAttribute('role','menuitem');b.style.setProperty('--c',AI[p].css);b.classList.toggle('on',cur);
-    b.append(el('small',cur?'Current':'Swap with '+other));
+    b.append(el('small',cur?'Current':other?'Swap with '+other:'Use for this role'));
     b.onclick=async()=>{if(cur){menu.hidden=true;return;}
-      const next={...roleSettings};next[other.toLowerCase()]=roleSettings[key];next[key]=CLI_OF[p];
+      const next={...roleSettings},provider=CLI_OF[p];
+      if(other){next[other.toLowerCase()]=roleSettings[key];next[key]=provider;}
+      else{
+        next[key]=provider;
+        const used=ROLES.map(r=>next[r.toLowerCase()]);
+        const missing=['claude','antigravity','openai'].filter(name=>!used.includes(name));
+        const dup=used.find(name=>used.filter(x=>x===name).length>1);
+        const fixer=ROLES.find(r=>r!==role&&next[r.toLowerCase()]===dup);
+        if(missing.length===1&&fixer)next[fixer.toLowerCase()]=missing[0];
+      }
       for(const x of menu.querySelectorAll('button'))x.disabled=true;
       try{const res=await fetch('/ops/roles',{method:'POST',headers:{'Content-Type':'application/json','X-Solomon-Bridge':roleToken},body:JSON.stringify(next)}),out=await res.json();
         if(!res.ok)throw Error(out.error||'Could not save');roleSettings=out.roles;notice('Role changed · '+ROLE_KO[role]+' = '+AI[p].name+' (applies from the next task)');}

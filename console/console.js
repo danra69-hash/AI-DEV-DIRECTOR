@@ -153,6 +153,27 @@ function setupFolderPicker(){
   catch(e){form.style.display='';if(note)note.textContent='Could not open the folder window. Type the path instead. ('+e.message+')';}
   finally{button.disabled=false;button.textContent=label;refresh();}};
 }
+async function selectProjectPath(path){
+ const res=await fetch('/project',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8','Accept':'application/json'},body:new URLSearchParams({path}).toString()}).then(r=>r.json());
+ return {path,ok:res.status==='ok',message:res.message||''};
+}
+function setupStageProject(){
+ const form=document.getElementById('stage-project');if(!form)return;
+ const input=document.getElementById('stage-project-path'),note=document.getElementById('stage-project-note');
+ let shown='';
+ form.addEventListener('submit',async e=>{e.preventDefault();const path=input.value.trim();
+  if(!path){note.textContent='Paste the full folder path, for example C:\\Users\\User\\my-repo';return;}
+  note.textContent='Opening…';
+  try{const r=await selectProjectPath(path);note.textContent=r.ok?'Project open · '+r.path:(r.message||'That folder was not accepted');if(r.ok)shown=path;}
+  catch(err){note.textContent='Could not open the project · '+err.message;}});
+ document.getElementById('stage-project-browse').onclick=async()=>{note.textContent='Look for the folder window. It can open behind this browser.';
+  try{const r=await chooseProjectFolder();if(!r){note.textContent='No folder was chosen. Paste the path instead.';return;}
+   input.value=r.path;shown=r.ok?r.path:shown;note.textContent=r.ok?'Project open · '+r.path:r.message;}
+  catch(err){note.textContent='The folder window did not open. Paste the path and click Open project. '+err.message;}};
+ setInterval(async()=>{try{const s=await fetch('/status',{cache:'no-store'}).then(r=>r.json());const path=s.project_path||'';
+  if(document.activeElement!==input&&path&&path!==shown){shown=path;input.value=path;note.textContent='Project open · '+path;}}catch(e){/* status poll reports this */}},4000);
+}
+setupStageProject();
 
 // ---------------------------------------------------------------- shut down: stop the companion from the console
 function showVeil(title,detail){

@@ -29,6 +29,14 @@
   </nav>
 </header>
 
+<form id="stage-project">
+  <label for="stage-project-path">Project folder</label>
+  <input id="stage-project-path" name="path" placeholder="Paste the full folder path, for example C:\Users\User\my-repo" autocomplete="off" spellcheck="false">
+  <button type="submit">Open project</button>
+  <button type="button" id="stage-project-browse" class="ghost">Browse</button>
+  <p id="stage-project-note">Paste the folder that contains your code, then click Open project. The folder must not be AI-DEV-DIRECTOR itself.</p>
+</form>
+
 <main id="stage">
   <aside id="panel-now" class="glass" aria-live="polite">
     <span class="kicker">Now</span>
