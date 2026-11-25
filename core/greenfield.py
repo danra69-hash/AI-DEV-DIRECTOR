@@ -181,7 +181,7 @@ def assess_project_type(
         "failed_predicates": failed_predicates,
         "head_commit": head_commit,
         **inventory,
-        **{"errors": errors},
+        "errors": errors,
         "observed_at": datetime.utcnow().isoformat(),
     }
     digest_payload = {key: value for key, value in evidence.items() if key not in {"observed_at", "evidence_sha256"}}
