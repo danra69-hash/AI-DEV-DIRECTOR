@@ -267,6 +267,8 @@ body.broadcast .slot-name{font-size:25px}
 #chat-text::placeholder{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top-actions button{white-space:nowrap}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+#trinity-canvas{display:none!important}
+*,*::before,*::after{animation:none!important;transition:none!important}
 #btn-shutdown{color:#ff9d9d;border-color:rgba(255,122,122,.45)}
 #btn-shutdown:hover{background:rgba(255,122,122,.14);border-color:#ff9d9d}
 #shutdown-veil{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(4,8,16,.94);color:var(--text);text-align:center;padding:24px}
