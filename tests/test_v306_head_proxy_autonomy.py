@@ -455,10 +455,10 @@ def test_mission_builds_milestones_on_each_other_until_done(tmp_path, monkeypatc
     step2 = Path(done["steps"][1]["result"]["worktree_path"])
     assert (step2 / "feature.py").exists() and (step2 / "feature2.py").exists()   # built on step 1
     assert done["base_worktree"] == str(step2) or Path(done["base_worktree"]) == step2
-    assert any(role == "HEAD" and "미션 완료" in text for role, text in messages)
+    assert any(role == "HEAD" and "Mission complete" in text for role, text in messages)
     # v3.2: the finished deliverable is applied to the project (autonomy.auto_apply defaults to on_pass)
     assert (tmp_path / "proj" / "feature.py").exists() and (tmp_path / "proj" / "feature2.py").exists()
-    assert done["applied"]["status"] == "applied" and "적용했습니다" in messages[-1][1]
+    assert done["applied"]["status"] == "applied" and "Applied the result" in messages[-1][1]
 
 
 def test_mission_blocks_only_on_a_delegated_exception(tmp_path, monkeypatch):
@@ -514,7 +514,7 @@ def test_chat_request_starts_a_mission_without_human_approval(monkeypatch):
     first = missions[0]["steps"][0]["order"]
     assert first["allowed_paths"] == ["src", "**"] and missions[0]["goal"] == "build the backtest report"
     texts = [m["content"] for m in ChatManager().get_messages(dashboard_server.active_session_id())]
-    assert not any(t.startswith("HUMAN_REQUIRED") for t in texts) and any("미션 시작" in t for t in texts)
+    assert not any(t.startswith("HUMAN_REQUIRED") for t in texts) and any("Mission started" in t for t in texts)
     dashboard_server._ACTIVE_PROJECTS.clear()
 
 

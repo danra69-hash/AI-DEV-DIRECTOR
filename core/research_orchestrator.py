@@ -167,27 +167,27 @@ class ResearchOrchestrator:
                 sid, SESSION_STATUS_HUMAN_REQUIRED,
                 f"GREENFIELD_QUALIFICATION_FAILED: {failed}",
             )
-            message = "새 프로젝트 GREENFIELD 조건을 증명하지 못해 연구 실행을 차단했습니다."
+            message = "Research was blocked because the new project did not prove the greenfield conditions."
         elif readiness["state"] == TRIAD_READY:
             prompt_artifacts = self._activate_independent_stage(sid, cycle_id, readiness, verified_evidence)
-            message = "세 AI를 모두 사용할 수 있습니다. 독립 연구 준비가 완료되었습니다."
+            message = "All three AIs are available. Independent research is ready."
         elif readiness["state"] == TRIAD_DEGRADED and approved:
             prompt_artifacts = self._activate_independent_stage(sid, cycle_id, readiness, verified_evidence)
-            message = "현재 2/3 AI만 사용 가능합니다. 명시적 승인에 따라 degraded 연구를 준비했습니다."
+            message = "Only 2 of 3 AIs are available. Degraded research was prepared because you approved it."
         elif readiness["state"] == TRIAD_DEGRADED:
             human_required = True
             self.rsm.set_session_status(
                 sid, SESSION_STATUS_HUMAN_REQUIRED,
-                "현재 2/3 AI만 사용 가능합니다. degraded 진행에 대한 명시적 사용자 결정이 필요합니다.",
+                "Only 2 of 3 AIs are available. Degraded research needs your explicit decision.",
             )
-            message = "현재 2/3 AI만 사용 가능합니다. 계속하려면 degraded 진행을 명시적으로 승인해야 합니다."
+            message = "Only 2 of 3 AIs are available. Approve degraded research explicitly to continue."
         else:
             human_required = True
             self.rsm.set_session_status(
                 sid, SESSION_STATUS_HUMAN_REQUIRED,
-                "TRIAD_BLOCKED: 두 개 이상의 provider를 사용할 수 없어 연구를 시작할 수 없습니다.",
+                "TRIAD_BLOCKED: research cannot start because fewer than two providers are available.",
             )
-            message = "두 개 이상의 AI를 사용할 수 없어 TRIAD 연구를 시작할 수 없습니다."
+            message = "TRIAD research cannot start because fewer than two AIs are available."
 
         return self.session_summary(sid, message=message, human_required=human_required,
                                     prompt_artifacts=prompt_artifacts)
@@ -215,7 +215,7 @@ class ResearchOrchestrator:
         )
         return self.session_summary(
             session_id,
-            message="현재 2/3 AI만 사용 가능합니다. 명시적 승인에 따라 degraded 연구를 준비했습니다.",
+            message="Only 2 of 3 AIs are available. Degraded research was prepared because you approved it.",
             human_required=False,
             prompt_artifacts=prompts,
         )
@@ -566,7 +566,7 @@ class ResearchOrchestrator:
             return self._fail_cycle(session_id, cycle["cycle_id"], "INDEPENDENT_RESEARCH_EVIDENCE_INCOMPLETE")
         self.rsm.transition_cycle(cycle["cycle_id"], ResearchState.CROSS_CRITIQUE,
                                   details="all independent proposals completed before disclosure")
-        return self.session_summary(session_id, message="모든 독립 연구가 완료되어 상호 비판 단계로 전환했습니다.")
+        return self.session_summary(session_id, message="Independent research is complete. Moving to cross-critique.")
 
     def run_cross_critique(self, session_id: str) -> Dict[str, Any]:
         session = self.rsm.get_session(session_id)
@@ -612,7 +612,7 @@ class ResearchOrchestrator:
             return self._fail_cycle(session_id, cycle["cycle_id"], "CROSS_CRITIQUE_EVIDENCE_INCOMPLETE")
         self.rsm.transition_cycle(cycle["cycle_id"], ResearchState.SYNTHESIS,
                                   details="all researchers completed cross critique")
-        return self.session_summary(session_id, message="상호 비판이 완료되어 통합 가설 단계로 전환했습니다.")
+        return self.session_summary(session_id, message="Cross-critique is complete. Moving to a combined hypothesis.")
 
     def run_synthesis(self, session_id: str) -> Dict[str, Any]:
         session = self.rsm.get_session(session_id)
@@ -652,7 +652,7 @@ class ResearchOrchestrator:
             return self._fail_cycle(session_id, cycle["cycle_id"], error)
         self.rsm.transition_cycle(cycle["cycle_id"], ResearchState.EXPERIMENT_PLANNING,
                                   details="Codex HEAD synthesized proposals and critiques without majority voting")
-        return self.session_summary(session_id, message="통합 가설이 생성되어 실험 계획 단계로 전환했습니다.")
+        return self.session_summary(session_id, message="The combined hypothesis is ready. Moving to experiment planning.")
 
     def run_through_synthesis(self, session_id: str) -> Dict[str, Any]:
         for operation in (self.run_independent_research, self.run_cross_critique, self.run_synthesis):
@@ -673,7 +673,7 @@ class ResearchOrchestrator:
             raise ValueError("session is not at EXPERIMENT_PLANNING")
         existing = self.rsm.get_experiment(cycle["cycle_id"])
         if existing and existing["status"] == "PLANNED":
-            return {**self.session_summary(session_id, message="저장된 실험 ORDER를 재사용합니다."),
+            return {**self.session_summary(session_id, message="Reusing the saved experiment ORDER."),
                     "experiment": existing}
 
         synthesis_rows = self.rsm.get_stage_outputs(cycle["cycle_id"], ResearchState.SYNTHESIS)
@@ -723,7 +723,7 @@ class ResearchOrchestrator:
             cycle["cycle_id"], payload, row["artifact_path"], row["output_sha256"],
             session["project_type"], project_row["baseline_state"],
         )
-        return {**self.session_summary(session_id, message="통합 가설을 안전한 실험 ORDER로 변환했습니다."),
+        return {**self.session_summary(session_id, message="Turned the combined hypothesis into a safe experiment ORDER."),
                 "experiment": self.rsm.get_experiment(cycle["cycle_id"])}
 
     def _default_experiment_orchestrator(self, project_evidence: Dict[str, Any],
@@ -832,10 +832,10 @@ class ResearchOrchestrator:
             if safe_research_failure:
                 if verifier_rejected:
                     review_detail = "deterministic verification rejected the experiment"
-                    message = "실험 검증은 실패했으며 성공으로 처리하지 않았습니다. 실패 증거를 독립 해석합니다."
+                    message = "Experiment verification failed and was not treated as a success. The failure evidence will be interpreted independently."
                 else:
                     review_detail = "reviewer found an ordinary implementation defect (no P0, no scope violation)"
-                    message = "Reviewer가 통상적인 구현 결함을 발견해 PASS로 처리하지 않았습니다. 실패 증거를 독립 해석합니다."
+                    message = "The reviewer found an ordinary implementation defect, so this was not treated as a pass. The failure evidence will be interpreted independently."
                 self.rsm.transition_cycle(cycle["cycle_id"], ResearchState.EXPERIMENT_VERIFYING,
                                           details="NORMAL deterministic verification PASS" if reviewer_found_defect
                                           else "deterministic verification rejected the experiment")
@@ -858,7 +858,7 @@ class ResearchOrchestrator:
                                   details="NORMAL reviewer and final evidence gate PASS")
         self.rsm.transition_cycle(cycle["cycle_id"], ResearchState.RESULT_INTERPRETATION,
                                   details="experiment evidence ready for independent interpretation")
-        return {**self.session_summary(session_id, message="실험이 안전 파이프라인을 통과했습니다."),
+        return {**self.session_summary(session_id, message="The experiment passed the safety pipeline."),
                 "experiment": self.rsm.get_experiment(cycle["cycle_id"])}
 
     # -------------------------------------------------------------- V3.0-F result interpretation + memory
@@ -890,7 +890,7 @@ class ResearchOrchestrator:
         }
         existing = self.rsm.get_stage_outputs(cycle["cycle_id"], INTERPRETATION_INDEPENDENT_STAGE)
         if len(existing) == len(domains) and {row["domain"] for row in existing} == domains:
-            return {**self.session_summary(session_id, message="저장된 독립 결과 해석을 재사용합니다."),
+            return {**self.session_summary(session_id, message="Reusing the saved independent result interpretations."),
                     "interpretation_substage": INTERPRETATION_CROSS_STAGE}
         if existing:
             return self._fail_cycle(session_id, cycle["cycle_id"], "RESULT_INTERPRETATION_EVIDENCE_PARTIAL")
@@ -934,7 +934,7 @@ class ResearchOrchestrator:
             return self._fail_cycle(
                 session_id, cycle["cycle_id"], "RESULT_INTERPRETATION_FAILED: " + "; ".join(failures)
             )
-        return {**self.session_summary(session_id, message="세 AI의 독립 결과 해석이 완료되었습니다."),
+        return {**self.session_summary(session_id, message="The three AIs finished interpreting the result independently."),
                 "interpretation_substage": INTERPRETATION_CROSS_STAGE}
 
     def run_interpretation_cross_critique(self, session_id: str) -> Dict[str, Any]:
@@ -961,7 +961,7 @@ class ResearchOrchestrator:
             return self._fail_cycle(session_id, cycle["cycle_id"], "INTERPRETATION_CROSS_BLOCKED: evidence incomplete")
         existing = self.rsm.get_stage_outputs(cycle["cycle_id"], INTERPRETATION_CROSS_STAGE)
         if len(existing) == len(domains) and {row["domain"] for row in existing} == domains:
-            return {**self.session_summary(session_id, message="저장된 결과 해석 교차 비판을 재사용합니다."),
+            return {**self.session_summary(session_id, message="Reusing the saved cross-critique of the interpretations."),
                     "interpretation_substage": RESEARCH_MEMORY_STAGE}
         if existing:
             return self._fail_cycle(session_id, cycle["cycle_id"], "INTERPRETATION_CROSS_EVIDENCE_PARTIAL")
@@ -999,7 +999,7 @@ class ResearchOrchestrator:
             return self._fail_cycle(
                 session_id, cycle["cycle_id"], "INTERPRETATION_CROSS_FAILED: " + "; ".join(failures)
             )
-        return {**self.session_summary(session_id, message="결과 해석 교차 비판이 완료되었습니다."),
+        return {**self.session_summary(session_id, message="The cross-critique of the interpretations is complete."),
                 "interpretation_substage": RESEARCH_MEMORY_STAGE}
 
     def consolidate_research_memory(self, session_id: str) -> Dict[str, Any]:
@@ -1023,7 +1023,7 @@ class ResearchOrchestrator:
         if self.rsm.list_research_memory(session_id) and any(
             row["cycle_id"] == cycle["cycle_id"] for row in self.rsm.list_research_memory(session_id)
         ):
-            return {**self.session_summary(session_id, message="저장된 Research Memory를 재사용합니다."),
+            return {**self.session_summary(session_id, message="Reusing the saved research memory."),
                     "research_memory": self.rsm.list_research_memory(session_id)}
 
         envelope = build_research_memory_prompt(synthesis_row["payload"], experiment, interpretations, critiques)
@@ -1081,7 +1081,7 @@ class ResearchOrchestrator:
             self.rsm.increment_cycles_completed(session_id)
             self.rsm.transition_cycle(cycle["cycle_id"], ResearchState.NEXT_CYCLE,
                                       details="memory persisted; next evidence-driven cycle allowed")
-        return {**self.session_summary(session_id, message="Research Memory가 증거와 함께 저장되었습니다."),
+        return {**self.session_summary(session_id, message="Research memory was saved with the evidence."),
                 "research_memory": self.rsm.list_research_memory(session_id)}
 
     def retrieve_research_memory_facts(self, session_id: str, query: str = "", limit: int = 5) -> list:
@@ -1136,16 +1136,16 @@ class ResearchOrchestrator:
                 session_id, cycle_id, readiness, verified_evidence, facts
             )
             message = (
-                "다음 cycle의 독립 연구를 시작했습니다."
+                "Started independent research for the next cycle."
                 if readiness["state"] == TRIAD_READY
-                else "현재 2/3 AI만 사용 가능합니다. 명시적 승인으로 다음 degraded cycle을 시작했습니다."
+                else "Only 2 of 3 AIs are available. The next degraded cycle started because you approved it."
             )
             return self.session_summary(session_id, message=message, prompt_artifacts=prompts)
 
         if readiness["state"] == TRIAD_DEGRADED:
-            reason = "현재 2/3 AI만 사용 가능합니다. 다음 cycle의 degraded 진행 승인이 필요합니다."
+            reason = "Only 2 of 3 AIs are available. The next cycle needs approval to continue degraded."
         else:
-            reason = "TRIAD_BLOCKED: 두 개 이상의 provider를 사용할 수 없어 다음 cycle을 시작할 수 없습니다."
+            reason = "TRIAD_BLOCKED: the next cycle cannot start because fewer than two providers are available."
         self.rsm.set_session_status(session_id, SESSION_STATUS_HUMAN_REQUIRED, reason)
         return self.session_summary(session_id, message=reason, human_required=True, prompt_artifacts=[])
 
@@ -1160,4 +1160,4 @@ class ResearchOrchestrator:
         }:
             self.rsm.transition_cycle(cycle["cycle_id"], ResearchState.RESEARCH_STOPPED, details=reason)
         self.rsm.set_session_status(session_id, SESSION_STATUS_STOPPED, reason)
-        return self.session_summary(session_id, message=f"연구를 중단했습니다: {reason}")
+        return self.session_summary(session_id, message=f"Research stopped: {reason}")
