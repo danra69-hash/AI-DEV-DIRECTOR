@@ -25,10 +25,10 @@ def identity():
     return env
 
 def prepare_project(path):
-    if not str(path).strip(): raise ValueError('프로젝트 경로가 필요합니다')
+    if not str(path).strip(): raise ValueError('A project path is required')
     root = Path(path).resolve()
     if root == Path(root.anchor) or root == Path.home() or root == SOURCE_ROOT or SOURCE_ROOT in root.parents or root in SOURCE_ROOT.parents:
-        raise ValueError('프로젝트 루트로 사용할 수 없는 광범위/제어 경로입니다')
+        raise ValueError('That path is too broad, or it is a control path, so it cannot be a project root')
     root.mkdir(parents=True, exist_ok=True)
     if not (root / '.git').exists(): git(root, 'init')
     try: git(root, 'rev-parse', '--verify', 'HEAD')

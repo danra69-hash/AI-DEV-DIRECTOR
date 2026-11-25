@@ -36,7 +36,7 @@ class SolomonBridge:
         with self.connect() as db:
             row = db.execute('SELECT * FROM solomon_orders WHERE request_id=?', (request_id,)).fetchone()
         if not row:
-            raise ValueError('알 수 없는 요청입니다')
+            raise ValueError('Unknown request')
         row = dict(row)
         run_id = row['run_id']
         run = self.d.StateMachine().get_run(run_id) if run_id else None
@@ -52,17 +52,17 @@ class SolomonBridge:
         from core.state_machine import State
         ident = payload.get('request_id', '')
         if not isinstance(ident, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,100}', ident):
-            raise ValueError('안정적인 request_id가 필요합니다')
+            raise ValueError('A stable request_id is required')
         ok, project = self.d.validate_project_path(payload.get('project_path', ''))
         if not ok:
             raise ValueError(project)
         if str(Path(project).resolve()).casefold() not in self.allowed:
-            raise ValueError('솔로몬에 실행 허용된 프로젝트가 아닙니다')
+            raise ValueError('This project is not allowed for Solomon')
         order = OrderSchema(**payload.get('order', {}))
         if not order.goal.strip() or not order.acceptance_criteria:
-            raise ValueError('작업 목표와 인수 기준이 필요합니다')
+            raise ValueError('A goal and acceptance criteria are required')
         if not 1 <= order.max_files_changed <= 15 or not 1 <= order.max_diff_lines <= 800:
-            raise ValueError('작업 한도를 초과했습니다')
+            raise ValueError('The work limit was exceeded')
         canonical = json.dumps({'project': project, 'order': order.model_dump()}, sort_keys=True, ensure_ascii=False)
         digest = hashlib.sha256(canonical.encode()).hexdigest()
         with self.lock:
@@ -71,7 +71,7 @@ class SolomonBridge:
                 existing = db.execute('SELECT payload_hash,run_id FROM solomon_orders WHERE request_id=?', (ident,)).fetchone()
                 if existing:
                     if existing['payload_hash'] != digest:
-                        raise ValueError('동일 request_id에 다른 작업을 보낼 수 없습니다')
+                        raise ValueError('The same request_id cannot carry a different task')
                     return {'request_id': ident, 'run_id': existing['run_id'], 'status': 'duplicate'}
                 # Persist before dispatch. A crash here is visible and is NOT silently replayed.
                 db.execute('INSERT INTO solomon_orders VALUES(?,?,?,?,?,NULL)',
@@ -81,7 +81,7 @@ class SolomonBridge:
             try:
                 with self.d._RUN_LOCK:
                     if key in self.d._ACTIVE_PROJECTS or self.d._project_busy(orch.sm, project):
-                        raise ValueError('이 프로젝트의 작업이 이미 진행 중입니다')
+                        raise ValueError('Work on this project is already in progress')
                     reasons = SafetyPolicy.assess_order_for_auto_run(order)
                     if reasons:
                         run_id = self.d._record_human_required(orch, project, order.goal,
