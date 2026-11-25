@@ -80,7 +80,7 @@ autonomy:
   # A finished mission is applied to the project on its own:
   # off | on_done (only when HEAD declared the goal done) | on_pass (any PASSED deliverable).
   # Apply never overwrites a file the operator changed meanwhile (conflict -> blocked, worktree kept) and never deletes.
-  # Default "off": you press 반영 after looking at the result.
+  # Default "off": you press Apply after looking at the result.
   auto_apply: "off"
   profiles:                    # budgets per request size; gates and Scope Guard are the same in every profile
     quick:    {max_steps: 2, max_repairs: 1, builder_attempts: 2}

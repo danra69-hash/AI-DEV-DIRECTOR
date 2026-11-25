@@ -10,9 +10,9 @@ sessions instead of pay-per-use API keys.
 > 아래 [알려진 한계](#알려진-한계-known-limits)를 먼저 읽어 주세요.
 > **This is not a hardened product.** It runs AI-written code and tests on your machine. Try it in a VM first.
 
-> 상태: 개인 운영 환경에서 매일 쓰고 있는 코드를 그대로 공개한 것입니다. 윈도우 우선, 한국어 UI.
+> 상태: 개인 운영 환경에서 매일 쓰고 있는 코드를 그대로 공개한 것입니다. 윈도우 우선, 영어 UI.
 > **macOS / Linux: 코드는 준비돼 있지만 미검증입니다** (v3.1.8, 아래 참고). 맥에서 돌려 보신 분은 이슈로 알려 주시면 고맙겠습니다.
-> Status: the code we run daily, published as-is. Windows-first, Korean UI, English comments.
+> Status: the code we run daily, published as-is. Windows-first, English UI, English comments.
 > **macOS / Linux: supported in code since v3.1.8 but not yet verified on a real Mac** — reports welcome.
 
 ---

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 PROVIDER_BY_CLI = {"claude": "ANTHROPIC", "codex": "OPENAI", "agy": "GOOGLE"}
 PROVIDER_NAME = {"ANTHROPIC": "Claude", "OPENAI": "Codex", "GOOGLE": "Antigravity"}
-ROLE_NAME = {"HEAD": "HEAD · 지휘", "BUILDER": "BUILDER · 구현", "REVIEWER": "REVIEWER · 검수"}
+ROLE_NAME = {"HEAD": "HEAD · directs", "BUILDER": "BUILDER · builds", "REVIEWER": "REVIEWER · reviews"}
 STALE_AFTER = timedelta(minutes=30)          # longer than any CLI timeout: a RUNNING row older than this died with its process
 
 _CTX: contextvars.ContextVar = contextvars.ContextVar("director_usage_ctx", default=None)
