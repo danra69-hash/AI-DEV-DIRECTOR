@@ -340,13 +340,14 @@ function replayTick(){
 
 // ------------------------------------------------------------------ chat with HEAD
 let lastMsg=0,sending=false;
+function closeChat(){const log=$('chat-log');if(!log)return;log.hidden=true;$('chat-peek').setAttribute('aria-expanded','false');}
 async function pollChat(){
-  try{const data=await getJSON('/chat/messages?after_id='+lastMsg),log=$('chat-log'),stick=log.scrollTop+log.clientHeight>=log.scrollHeight-40;
+  try{const data=await getJSON('/chat/messages?after_id='+lastMsg),box=$('chat-log'),log=$('chat-messages')||box,stick=box.scrollTop+box.clientHeight>=box.scrollHeight-40;
     for(const msg of data.messages||[]){lastMsg=Math.max(lastMsg,msg.id);const role=['USER','HEAD','SYSTEM'].includes(msg.role)?msg.role:'SYSTEM';
       const node=el('div','','chat-msg '+role);if(role!=='SYSTEM')node.append(el('small',role==='USER'?'Me':'HEAD'));const body=String(msg.content||'');node.append(role==='SYSTEM'&&body.length>260?body.slice(0,260)+'…':body);log.append(node);
       $('peek-role').textContent=role==='USER'?'Me':role;$('peek-role').dataset.role=role;$('peek-text').textContent=String(msg.content||'').replace(/\s+/g,' ').slice(0,200);}
     while(log.children.length>80)log.firstChild.remove();
-    if(stick)log.scrollTop=log.scrollHeight;
+    if(stick)box.scrollTop=box.scrollHeight;
     if(!lastMsg)$('peek-text').textContent='No conversation yet. Type an instruction on the right.';
   }catch(e){/* next poll retries */}
 }
@@ -392,11 +393,12 @@ function start(){
   document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.body.classList.contains('broadcast'))setBroadcast(false);});
   for(const b of $('win-tabs').children)b.onclick=()=>{win=b.dataset.win;winAuto=false;repaint();};
   $('chat-peek').onclick=()=>{const log=$('chat-log');log.hidden=!log.hidden;$('chat-peek').setAttribute('aria-expanded',String(!log.hidden));if(!log.hidden)log.scrollTop=log.scrollHeight;};
+  $('chat-close').onclick=closeChat;
   $('chat-form').addEventListener('submit',e=>{e.preventDefault();send($('chat-text').value);});
   $('chat-text').addEventListener('input',grow);
   $('chat-text').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();send($('chat-text').value);}});
   document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){$('chat-log').hidden=true;$('role-menu').hidden=true;if(replay)stopReplay();return;}
+    if(e.key==='Escape'){closeChat();$('role-menu').hidden=true;if(replay)stopReplay();return;}
     if(e.target.closest('textarea,input,[contenteditable]')||e.ctrlKey||e.metaKey||e.altKey||document.body.dataset.view!=='stage')return;
     if(e.key==='b'||e.key==='B'||e.key==='ㅠ')setBroadcast(!document.body.classList.contains('broadcast'));
     if(e.key==='r'||e.key==='R'||e.key==='ㄱ')startReplay();});

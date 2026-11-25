@@ -96,7 +96,10 @@
 
 <footer id="composer" class="glass">
   <button type="button" id="chat-peek" aria-expanded="false" aria-controls="chat-log"><span id="peek-role">HEAD</span><span id="peek-text">Reading the conversation.</span></button>
-  <div id="chat-log" hidden></div>
+  <div id="chat-log" hidden>
+    <div id="chat-log-bar"><span>Conversation</span><button type="button" id="chat-close">Close</button></div>
+    <div id="chat-messages"></div>
+  </div>
   <form id="chat-form">
     <textarea id="chat-text" rows="1" maxlength="8000" placeholder="Tell HEAD what to do — for example: build a caption length checker" aria-label="Tell HEAD what to do"></textarea>
     <button type="submit" id="chat-send">Send</button>
