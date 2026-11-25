@@ -713,7 +713,7 @@ def _start_mission(sid: str, orch: Orchestrator, project_path: str, goal: str, o
         _ACTIVE_PROJECTS[key] = mission["mission_id"]
     ChatManager().add_message(
         sid, "SYSTEM",
-        f"Mission started {mission['mission_id']}: HEAD plans and decides step by step until the goal is met (up to {mission['max_steps']} steps). "
+        f"Mission started {mission['mission_id']}: HEAD keeps planning until the goal is met. Press Stop work to end it. "
         "You are asked only about payments, live-account orders, credentials, and irreversible external actions.")
     _run_mission_thread(sid, mission["mission_id"], key)
     return mission["mission_id"]

@@ -74,7 +74,7 @@ autonomy:
   # permission configuration, stops. true: HEAD proxy lets it through without asking (logged as HEAD_PROXY_WAIVER).
   waive_scope_caps: false
   builder_attempts: 3          # retry with feedback; the last attempt moves to another provider
-  max_steps: 6                 # milestones per mission
+  max_steps: 6                 # kept for older records; a mission no longer stops when this number is reached
   max_consecutive_failures: 3
   resume_on_start: false       # true: a companion restart continues interrupted (RUNNING) missions on its own
   # A finished mission is applied to the project on its own:

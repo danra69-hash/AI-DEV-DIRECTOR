@@ -22,7 +22,7 @@ const STAGE_TEXT={CHAT:'reading the request',MISSION_PLANNING:'planning the next
 const SHORT={CHAT:'Reading the request',MISSION_PLANNING:'Planning the next step',PLANNING:'Writing the order',ORDER_READY:'Writing the order',BUILDING:'Writing code',REVIEWING:'Reviewing',DECIDING:'Deciding'};
 const STATE_KO={PASS:'Passed',FAIL:'Failed',TIMEOUT:'Timed out',HUMAN_REQUIRED:'Needs you',RECOVERED:'Recovered'};
 const STEP_CLASS={PASS:'ok',RECOVERED:'ok',FAIL:'bad',TIMEOUT:'bad',HUMAN_REQUIRED:'warn'};
-const MISSION_BADGE={DONE:['Done','ok'],INCOMPLETE:['Budget used up','warn'],BLOCKED:['Needs you','warn'],FAILED:['Failed','bad']};
+const MISSION_BADGE={DONE:['Done','ok'],INCOMPLETE:['Stopped','warn'],BLOCKED:['Needs you','warn'],FAILED:['Failed','bad']};
 const PULSE={ok:[.35,1,.7],bad:[1,.32,.4],warn:[1,.78,.4],done:[1,.93,.75]};
 
 let activity=null,status=null,win=null,winAuto=true,replay=null,lastModel=null,center=null,timerBase=null;
@@ -152,12 +152,13 @@ function paintMission(m){
   if(!ms){badge.textContent='—';badge.className='badge';$('mission-goal').textContent='No mission recorded yet. Send an instruction and the steps will show up here.';steps.replaceChildren();$('mission-meta').textContent='';return;}
   const running=ms.status==='RUNNING',b=running?(ms.live?['In progress','run']:['Stopped · waiting to resume','warn']):(MISSION_BADGE[ms.status]||[ms.status,'']);
   badge.textContent=b[0];badge.className='badge '+b[1];$('mission-goal').textContent=ms.goal;
-  while(steps.children.length>ms.max)steps.lastChild.remove();
-  while(steps.children.length<ms.max)steps.append(el('span',String(steps.children.length+1)));
-  for(let i=0;i<ms.max;i++){const s=ms.steps.find(x=>x.index===i+1),chip=steps.children[i];
-    chip.className=s?(STEP_CLASS[s.state]||'run'):'todo';chip.title=s?('Step '+(i+1)+' · '+(STATE_KO[s.state]||'in progress')):'Remaining step budget';}
+  const count=Math.max(ms.steps.length,1);
+  while(steps.children.length>count)steps.lastChild.remove();
+  while(steps.children.length<count)steps.append(el('span',String(steps.children.length+1)));
+  for(let i=0;i<count;i++){const s=ms.steps.find(x=>x.index===i+1),chip=steps.children[i];
+    chip.className=s?(STEP_CLASS[s.state]||'run'):'todo';chip.title=s?('Step '+(i+1)+' · '+(STATE_KO[s.state]||'in progress')):'Step '+(i+1);}
   const last=[...ms.steps].reverse().find(s=>s.tests);
-  $('mission-meta').textContent=ms.passed+' steps passed · '+ms.steps.length+'/'+ms.max+' steps used'+(last?' · tests '+last.tests.passed+'/'+last.tests.total:'');
+  $('mission-meta').textContent=ms.passed+' steps passed · '+ms.steps.length+' done'+(last?' · tests '+last.tests.passed+'/'+last.tests.total:'');
   paintDelivery(m);
   if(m.mode!=='live')return;
   for(const s of ms.steps){const key=ms.id+':'+s.index,prev=seenSteps.get(key);seenSteps.set(key,s.state);
@@ -172,7 +173,7 @@ async function decideMission(id,action,extra){
   try{const body=new URLSearchParams({mission_id:id,action,...(extra||{})});
     const res=await fetch('/ops/mission/decide',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},body});
     const out=await res.json().catch(()=>({}));
-    const msg={applied:'Applied to the project · '+(out.files||[]).length+' files',blocked:'Cannot apply · '+((out.blocks||[]).join('; ')||'').slice(0,160),discarded:'Discarded the result',resumed:'Continuing the mission (step budget '+out.max_steps+')',busy:'Another task is already running'}[out.status]||(out.status+' '+(out.error||out.reason||''));
+    const msg={applied:'Applied to the project · '+(out.files||[]).length+' files',blocked:'Cannot apply · '+((out.blocks||[]).join('; ')||'').slice(0,160),discarded:'Discarded the result',resumed:'Continuing the mission',busy:'Another task is already running'}[out.status]||(out.status+' '+(out.error||out.reason||''));
     notice(msg);Trinity.pulse(out.status==='applied'?PULSE.done:out.status==='blocked'?PULSE.warn:PULSE.ok);}
   catch(e){notice('Request failed · '+e.message);}
   finally{deliveryBusy=false;pollActivity();}

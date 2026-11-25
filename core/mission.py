@@ -4,7 +4,7 @@ One user request becomes a MISSION. HEAD turns it into milestone ORDERs; each OR
 pipeline (worktree -> Builder -> Director tests -> independent Reviewer -> HEAD) and every new milestone starts
 from a private snapshot of the latest PASSED milestone's worktree. After each milestone HEAD re-plans from the
 real evidence until the goal is DONE, BLOCKED on a delegated exception (money / credentials / irreversible
-external action), or the step budget is spent. The user's project is never modified; the deliverable is the
+external action), or milestones keep failing. There is no step cap. The user's project is never modified; the deliverable is the
 final worktree. Missions are persisted so a restart continues where it stopped.
 """
 import json
@@ -178,7 +178,6 @@ class MissionRunner:
     # ------------------------------------------------------------------ one step
     def _advance(self, mission: Dict[str, Any]) -> Dict[str, Any]:
         step = mission["steps"][-1]
-        total = mission["max_steps"]
         orch = self.factory()
         knobs = autopilot.profile_overrides(orch.config, mission.get("profile"))
         if knobs:                                              # the profile's budgets apply to every run of this mission
@@ -191,7 +190,7 @@ class MissionRunner:
             step["result"] = self._evidence(orch, step["run_id"])
             self.store.save(mission)
             r = step["result"]
-            self.notify(f"[Mission {step['index']}/{total}] result {r['final_state']} - "
+            self.notify(f"[Mission step {step['index']}] result {r['final_state']} - "
                         f"{self._one_line(r)}", run_id=step["run_id"])
         result = step["result"]
         if result["final_state"] == State.PASS:
@@ -224,7 +223,7 @@ class MissionRunner:
                     self.store.save(mission)
                     return self._finish(mission, "BLOCKED", blocked=detail)
                 treated = f"FAIL (USER_DECISION reviewed by {source} as not a delegated exception: {why[:300]}; HEAD re-plans)"
-                self.notify(f"[Mission {step['index']}/{total}] HEAD re-checked a request for your confirmation: it is not a delegated exception "
+                self.notify(f"[Mission step {step['index']}] HEAD re-checked a request for your confirmation: it is not a delegated exception "
                             f"(payment, credentials, live funds, security), so HEAD plans again.", run_id=step["run_id"])
             result["treated_as"] = treated
             self.store.save(mission)
@@ -238,11 +237,7 @@ class MissionRunner:
         if status != "CONTINUE":
             return self._finish(mission, "INCOMPLETE", summary=plan.get("summary", ""),
                                 blocked=f"HEAD could not plan the next step: {plan.get('reason', '')}")
-        if len(mission["steps"]) >= total:
-            return self._finish(mission, "INCOMPLETE", summary=plan.get("summary", ""),
-                                blocked=f"step budget ({total}) used; next step was: {plan['order'].get('goal', '')}")
-        # Consecutive failures end a mission - but an attempt HEAD chose to build on is progress, not a dead end
-        # (the step budget still bounds the mission).
+        # Consecutive failures end a mission - but an attempt HEAD chose to build on is progress, not a dead end.
         streak, steps = 0, mission["steps"]
         for i in range(len(steps) - 1, -1, -1):
             res = steps[i].get("result") or {}
@@ -277,7 +272,7 @@ class MissionRunner:
             nxt["result"] = self._evidence(orch, nxt["run_id"])
             return self._finish(mission, "BLOCKED", summary=plan.get("summary", ""), blocked=gate["escalate"])
         self.store.save(mission)
-        self.notify(f"[Mission {nxt['index']}/{total}] HEAD plan: {plan.get('summary', '')[:400]}\nNext step: {order.goal[:300]}",
+        self.notify(f"[Mission step {nxt['index']}] HEAD plan: {plan.get('summary', '')[:400]}\nNext step: {order.goal[:300]}",
                     role="HEAD")
         return mission
 
@@ -299,7 +294,7 @@ class MissionRunner:
             self.store.save(mission)
         else:
             orch._reserved_run_ids = set(getattr(orch, "_reserved_run_ids", set())) | {rid}
-        self.notify(f"[Mission {step['index']}/{mission['max_steps']}] starting: {order.goal[:300]}", run_id=rid)
+        self.notify(f"[Mission step {step['index']}] starting: {order.goal[:300]}", run_id=rid)
         try:
             orch.run(project, order.goal, run_id=rid, order=order, base_worktree=mission.get("base_worktree"))
         except Exception as exc:
@@ -402,7 +397,7 @@ class MissionRunner:
         passed = sum(1 for s in mission["steps"] if (s.get("result") or {}).get("final_state") == State.PASS)
         where = mission.get("base_worktree") or "(no step has passed yet)"
         head_line = {"DONE": "Mission complete", "BLOCKED": "Mission held - your decision is required",
-                     "INCOMPLETE": "Mission stopped - the step budget is used up, or a plan is not possible", "FAILED": "Mission failed"}[status]
+                     "INCOMPLETE": "Mission stopped - the next step could not be planned", "FAILED": "Mission failed"}[status]
         text = (f"{head_line} ({passed}/{len(mission['steps'])} steps passed)\n"
                 f"Goal: {mission['goal'][:300]}\n{mission['summary'][:1500]}\nResult location (work copy): {where}")
         if blocked:
