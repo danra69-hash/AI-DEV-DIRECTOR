@@ -27,7 +27,7 @@ def test_stopped_survives_running_saves(tmp_path):
     m["status"] = "RUNNING"            # the thread's stale in-memory copy
     store.save(m)
     assert store.load("MSN-TEST-1")["status"] == "STOPPED"
-    assert "정지" in store.load("MSN-TEST-1")["blocked_reason"]
+    assert "Stopped" in store.load("MSN-TEST-1")["blocked_reason"]
 
 
 def test_reopen_clears_stop(tmp_path):

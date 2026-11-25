@@ -44,7 +44,7 @@ def test_only_the_allowlisted_console_files_are_served(http_server):
 
 def test_stage_page_needs_no_inline_code_or_external_host():
     html = (CONSOLE / "index.html").read_text(encoding="utf-8")
-    assert "AI DEV 작업실" in html                                   # the workshop iframe is still there
+    assert "AI DEV workshop" in html                                 # the workshop iframe is still there
     assert not re.search(r"<script(?![^>]*\bsrc=)", html)            # CSP default-src 'self': no inline script
     assert "style=" not in html and "<style" not in html              # ... and no inline style
     for name in ("index.html", "stage.js", "trinity.js", "stage.css"):

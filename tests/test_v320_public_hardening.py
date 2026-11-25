@@ -112,7 +112,7 @@ STATE_CHANGING = ["/chat", "/project", "/run/approve", "/run/reject", "/ops/miss
 @pytest.mark.parametrize("path", STATE_CHANGING)
 def test_local_program_without_a_session_cannot_send_commands(console, path):
     code, body, _ = call(console, "POST", path, "message=hello&run_id=x&path=C%3A%2Fx", FORM)
-    assert code == 403 and "연결" in json.loads(body)["error"]
+    assert code == 403 and "not connected" in json.loads(body)["error"]
 
 
 def test_token_is_not_handed_to_unauthenticated_callers(console):

@@ -153,10 +153,10 @@ def test_bridge_missions_need_the_token_and_respect_the_allowlist(http_server, m
     assert request(http_server, "GET", "/bridge/projects")[0] == 403
     body = json.dumps({"request_id": "solomon-req-0001", "project_path": "C:/elsewhere/proj", "goal": "make a thing"})
     code, data = request(http_server, "POST", "/bridge/missions", body=body, headers={"X-Solomon-Bridge": "test-token", "Content-Type": "application/json"})
-    assert code == 400 and "허용된 폴더 밖" in json.loads(data)["error"]
+    assert code == 400 and "Outside the folders" in json.loads(data)["error"]
     body = json.dumps({"request_id": "solomon-req-0002", "project_path": "E:/work/SOLOMON", "goal": "modify yourself"})
     code, data = request(http_server, "POST", "/bridge/missions", body=body, headers={"X-Solomon-Bridge": "test-token", "Content-Type": "application/json"})
-    assert code == 400 and "지시할 수 없" in json.loads(data)["error"]
+    assert code == 400 and "cannot direct" in json.loads(data)["error"]
 
 
 def test_bridge_mission_start_decide_and_duplicate_request(http_server, monkeypatch, tmp_path):
