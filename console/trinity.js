@@ -238,10 +238,13 @@ function blur(src,dst,dx,dy){
   gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);gl.viewport(0,0,dst.w,dst.h);
   gl.bindTexture(gl.TEXTURE_2D,src.tex);gl.uniform2f(uB.uDir,dx/dst.w,dy/dst.h);gl.drawArrays(gl.TRIANGLES,0,3);
 }
-function frame(now){
-  raf=requestAnimationFrame(frame);
-  const dt=Math.min(.05,Math.max(0,(now-last)/1000))*timeScale;last=now;
-  render(dt);
+function holdStill(){
+  if(!canvas)return;
+  boot=1;time=1.2;pulse=0;
+  for(let i=0;i<3;i++){cur.act[i]=tgt.act[i];cur.edge[i]=tgt.edge[i];
+    for(let j=0;j<3;j++)cur.colors[i][j]=tgt.colors[i][j];}
+  cur.core=tgt.core;cur.verify=tgt.verify;
+  render(0);render(0);
 }
 function render(dt){
   time+=dt;resize();approach(dt);
@@ -311,9 +314,10 @@ function init(el,opts){
     failed=true;gl=null;flat=canvas.getContext('2d');
     if(window.console)console.warn('Trinity: WebGL2 fallback to 2D -',err.message);
   }
-  if(!listening){listening=true;window.addEventListener('pointermove',e=>{mouse[0]=(e.clientX/window.innerWidth-.5)*2;mouse[1]=(e.clientY/window.innerHeight-.5)*2;},{passive:true});}
-  size=[0,0];resize();
-  if(!running){running=true;last=performance.now();raf=requestAnimationFrame(frame);}
+  if(!listening){listening=true;window.addEventListener('resize',()=>{size=[0,0];holdStill();});}
+  size=[0,0];
+  cancelAnimationFrame(raf);running=false;
+  requestAnimationFrame(()=>holdStill());
   return {webgl:!failed,hdr};
 }
 function set(s){
@@ -321,9 +325,10 @@ function set(s){
   if(s.edge)for(let i=0;i<3;i++)tgt.edge[i]=s.edge[i];
   if(s.core!=null)tgt.core=s.core;if(s.verify!=null)tgt.verify=s.verify;
   if(s.colors)for(let i=0;i<3;i++)tgt.colors[i]=s.colors[i].slice();
+  holdStill();
 }
 return {init,set,
-  pulse(color){pulse=1;pulseColor=(color||[1,1,1]).slice();},
+  pulse(){},
   focus(r){rect=r;},                                  // stage rect inside the canvas, normalised {x,y,w,h}
   step(sec){for(let s=0;s<sec;s+=1/30){time+=1/30;approach(1/30);}render(0);},   // deterministic advance (captures, hidden tabs)
   state(){return {cur,tgt,pulse,boot,time,size:size.slice(),hdr,webgl:!failed,points:total};}};
