@@ -70,7 +70,7 @@ def test_2_degraded_intake_requires_explicit_human_decision_and_runs_nothing(tmp
     assert result["human_required"] is True and result["execution_authorized"] is False
     assert result["current_stage"] == ResearchState.RESEARCH_INTAKE
     assert result["prompt_artifacts"] == []
-    assert "현재 2/3 AI만 사용 가능합니다" in result["message"]
+    assert "Only 2 of 3 AIs are available" in result["message"]
 
 
 def test_3_explicit_degraded_approval_stays_truthfully_two_provider(tmp_path, provider_state):
@@ -84,7 +84,7 @@ def test_3_explicit_degraded_approval_stays_truthfully_two_provider(tmp_path, pr
     assert approved["participant_count"] == 2 and approved["execution_authorized"] is True
     assert approved["current_stage"] == ResearchState.INDEPENDENT_RESEARCH
     assert {a["provider_domain"] for a in approved["prompt_artifacts"]} == {"OPENAI", "GOOGLE"}
-    assert "2/3" in approved["message"]
+    assert "Only 2 of 3 AIs are available" in approved["message"]
     persisted = ResearchStateMachine().get_session(pending["session_id"])
     intake = json.loads(persisted["intake_evidence"])
     assert intake["state"] == TRIAD_DEGRADED and intake["degraded_approved_by"] == "tester"

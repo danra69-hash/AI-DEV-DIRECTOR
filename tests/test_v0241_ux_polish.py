@@ -125,7 +125,7 @@ def test_status_payload_and_page_show_hint_and_short_recovery(server, env):
     assert any(d.startswith("ANTHROPIC: RECOVERING: cheap probe ok") for d in st["recovery_details"])
     html = render_html()
     assert 'id="system-mode-hint" data-raw="Claude backup recovering' in html
-    assert 'id="recovery-short" data-raw="Claude backup recovering">CLAUDE 복구 중</div>' in html
+    assert 'id="recovery-short" data-raw="Claude backup recovering">CLAUDE recovering</div>' in html
     # long explanation only inside the Details element, not in the provider card's visible table
     card = html.split('id="node-ANTHROPIC"')[1].split("</table>")[0]
     assert "cheap probe ok" in card.split("<table>")[0] and "cheap probe ok" not in card.split("<table>")[1]

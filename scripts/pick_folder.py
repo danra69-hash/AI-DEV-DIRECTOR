@@ -18,7 +18,7 @@ def main() -> int:
     root.attributes("-topmost", True)          # the dialog must not open behind the browser
     root.update()
     chosen = filedialog.askdirectory(parent=root, initialdir=initial or None, mustexist=True,
-                                     title="AI DEV DIRECTOR - 작업할 폴더 선택")
+                                     title="AI DEV DIRECTOR - Choose a project folder")
     root.destroy()
     sys.stdout.buffer.write(json.dumps({"path": chosen or ""}).encode("ascii"))   # ensure_ascii: safe on any codepage
     return 0
