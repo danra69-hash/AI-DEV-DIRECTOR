@@ -1,6 +1,7 @@
 """Upgraded local console on 8081. Frozen 8080 is deliberately untouched."""
 import json
 import logging
+import os
 import re
 import secrets
 import subprocess
@@ -28,9 +29,8 @@ SESSION_COOKIE = 'director_session'
 LOCK_PAGE = ('<!doctype html><meta charset="utf-8"><title>AI DEV DIRECTOR</title>'
              '<body style="font:16px/1.7 system-ui,sans-serif;max-width:560px;margin:14vh auto;padding:0 20px;color:#222">'
              '<h1 style="font-size:20px">This browser is not connected yet</h1>'
-             '<p>Run start-companion. The terminal prints a login address. Open that address once and '
-             'this browser stays connected.</p>'
-             '<p style="color:#666">Run start-companion and open the login link it prints (once per browser).</p></body>')
+             '<p>This address is missing the login token. In the project folder run start-companion.ps1. '
+             'It opens a link that starts with http://127.0.0.1:8081/?token= . Use that link once and this browser stays connected.</p></body>')
 
 
 def token_file() -> Path:
@@ -55,10 +55,17 @@ def pick_folder(initial: str = "", timeout: int = 300) -> dict:
     if not _PICK_LOCK.acquire(blocking=False):
         return {"error": "The folder window is already open."}
     try:
-        out = subprocess.run([sys.executable, str(ROOT / "scripts" / "pick_folder.py"), initial or ""],
-                             capture_output=True, timeout=timeout)
+        kwargs = {"capture_output": True, "timeout": timeout}
+        if os.name == "nt":
+            # The companion is started with a hidden console. Without this, Windows also hides the folder dialog.
+            startup = subprocess.STARTUPINFO()
+            startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startup.wShowWindow = 1
+            kwargs["startupinfo"] = startup
+        out = subprocess.run([sys.executable, str(ROOT / "scripts" / "pick_folder.py"), initial or ""], **kwargs)
         if out.returncode != 0:
-            return {"error": "Could not open the folder window."}
+            detail = (out.stderr or b"").decode("utf-8", "replace").strip()[:180]
+            return {"error": detail or "Could not open the folder window."}
         return {"path": str(json.loads(out.stdout.decode("ascii") or "{}").get("path", ""))}
     except subprocess.TimeoutExpired:
         return {"error": "The folder window timed out."}
