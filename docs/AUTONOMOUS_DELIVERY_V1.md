@@ -2,7 +2,7 @@
 
 2026-09-14. 기본 설정: Claude HEAD → Antigravity Builder → 자동 검사 → Codex Reviewer → Claude HEAD.
 
-HEAD는 목표를 ORDER로 만들고 구현상의 선택을 맡긴다. Builder는 변경 파일의 전체 내용을 JSON으로 제출한다. Director는 모든 제출 경로를 먼저 검사하고 격리 작업본에 반영한다. 기존 보호 패턴은 Python Scope Guard가 처리하므로 Antigravity 네이티브 경로 권한으로 변환할 필요가 없다. Antigravity 호출은 별도 임시 저장소에서 수행하며 업무 저장소를 CLI 작업 디렉터리로 주지 않는다. CLI는 제공된 텍스트에서 구현하며 실제 파일 반영은 Director가 담당한다.
+HEAD는 목표를 ORDER로 만들고 구현상의 선택을 맡는다. Builder는 변경 파일의 전체 내용을 JSON으로 제출한다. Director는 모든 제출 경로를 먼저 검사하고 격리 작업본에 반영한다. 기존 보호 패턴은 Python Scope Guard가 처리하므로 Antigravity 네이티브 경로 권한으로 변환할 필요가 없다. Antigravity 호출은 별도 임시 저장소에서 수행하며 업무 저장소를 CLI 작업 디렉터리로 주지 않는다. CLI는 제공된 텍스트에서 구현하며 실제 파일 반영은 Director가 담당한다.
 
 자동 테스트가 실패해도 바로 종료하지 않고 Reviewer와 HEAD에 전달한다. HEAD의 FAIL 및 next_steps가 수정 지시가 되며 같은 작업본에서 BUILDING으로 돌아간다. 기본 최대 수정 3회. 라운드별 리뷰·테스트·HEAD 판단은 repair_history.json에 보존한다. 최종 PASS 조건은 기존 검증과 독립 리뷰를 그대로 사용한다.
 
