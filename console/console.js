@@ -68,7 +68,7 @@ async function setupRoles(){
 // ---------------------------------------------------------------- AI work visibility (missions, who works now, workload)
 const PROVIDER={ANTHROPIC:'Claude',OPENAI:'Codex',GOOGLE:'Antigravity'},ROLE={HEAD:'HEAD · directs',BUILDER:'BUILDER · builds',REVIEWER:'REVIEWER · reviews',OTHER:'Other'};
 const STEP_CLASS={PASS:'ok',FAIL:'bad',TIMEOUT:'bad',HUMAN_REQUIRED:'warn'};
-const MISSION_STATUS={DONE:'Done',INCOMPLETE:'Budget used up',BLOCKED:'Needs your decision',FAILED:'Failed'};
+const MISSION_STATUS={DONE:'Done',INCOMPLETE:'Stopped',BLOCKED:'Needs your decision',FAILED:'Failed'};
 let activityBusy=false,usageWindow='mission';
 function fmtTime(sec){sec=Math.round(sec||0);if(sec<60)return sec+'s';const m=Math.floor(sec/60);if(m<60)return m+'m'+(m<10&&sec%60?' '+(sec%60)+'s':'');return Math.floor(m/60)+'h '+(m%60)+'m';}
 function fmtTokens(b){if(!b)return '—';if(!b.tokens)return b.unknown_calls?'not recorded':'—';return (b.exact_tokens<b.tokens?'~':'')+b.tokens.toLocaleString('en-US')+(b.unknown_calls?' (+'+b.unknown_calls+' not recorded)':'');}
@@ -101,8 +101,8 @@ function paintMission(focus){
  const title=el('div','','ai-mission-title');title.append(el('strong','Mission · '+focus.project),el('span',status,'ai-badge '+(focus.status==='DONE'?'ok':focus.status==='RUNNING'&&focus.live?'run':'warn')));
  m.append(title,el('p',focus.goal,'ai-goal'));
  const bar=el('div','','ai-steps');
- for(let i=1;i<=Math.max(focus.max_steps||0,focus.steps.length);i++){const s=focus.steps.find(x=>x.index===i);const chip=el('span',String(i),'chip '+(s?(STEP_CLASS[s.state]||'run'):'todo'));chip.title=s?('Step '+i+' · '+(s.state_ko||'in progress')+' · '+s.goal):'Remaining step budget';bar.append(chip);}
- m.append(bar,el('small',focus.passed_steps+' steps passed · '+focus.steps.length+'/'+focus.max_steps+' steps used · updated '+ago(focus.updated_at),'ai-sub'));
+ for(let i=1;i<=Math.max(focus.steps.length,1);i++){const s=focus.steps.find(x=>x.index===i);const chip=el('span',String(i),'chip '+(s?(STEP_CLASS[s.state]||'run'):'todo'));chip.title=s?('Step '+i+' · '+(s.state_ko||'in progress')+' · '+s.goal):'Step '+i;bar.append(chip);}
+ m.append(bar,el('small',focus.passed_steps+' steps passed · '+focus.steps.length+' done · updated '+ago(focus.updated_at),'ai-sub'));
  const list=el('details');list.append(el('summary','Results by step'));
  for(const s of [...focus.steps].reverse()){const row=el('div','','ai-step '+(STEP_CLASS[s.state]||'run'));const t=s.tests?(' · tests '+s.tests.passed+'/'+s.tests.total):'';row.append(el('strong','Step '+s.index+' · '+(s.state_ko||s.state||'in progress')+t+(s.review?' · review '+s.review:'')+(s.repairs?' · auto-fix '+s.repairs:'')+(s.builds_on_failed_attempt?' · continued from the previous attempt':'')),el('p',s.goal));if(s.note)row.append(el('small',s.note));list.append(row);}
  m.append(list);
