@@ -193,7 +193,7 @@ def test_greenfield_without_post_build_tests_cannot_pass(tmp_path):
     assert result["current_stage"] == ResearchState.RESULT_INTERPRETATION
     assert result["experiment"]["normal_final_state"] == State.FAIL
     assert result["experiment"]["result"]["verification"]["passed"] is False
-    assert "성공으로 처리하지 않았습니다" in result["message"]
+    assert "not treated as a success" in result["message"]
 
 
 def test_invalid_order_is_blocked_before_normal_pipeline_or_builder(tmp_path):

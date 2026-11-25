@@ -48,7 +48,7 @@ def test_same_id_changed_payload_rejected(bridge):
 
 def test_unregistered_project_rejected(bridge):
     b, p, calls = bridge; p['project_path'] += '-outside'
-    with pytest.raises(ValueError, match='허용'):
+    with pytest.raises(ValueError, match='not allowed'):
         b.submit(p)
     assert not calls
 
@@ -78,7 +78,7 @@ def test_missing_acceptance_rejected(bridge):
 
 def test_busy_is_durable_and_not_replayed(bridge):
     b, p, calls = bridge; b.d._project_busy = lambda *a: True
-    with pytest.raises(ValueError, match='진행'): b.submit(p)
+    with pytest.raises(ValueError, match='already in progress'): b.submit(p)
     assert b.submit(p)['status'] == 'duplicate'
     with b.connect() as db:
         assert db.execute('SELECT error FROM solomon_orders').fetchone()[0]

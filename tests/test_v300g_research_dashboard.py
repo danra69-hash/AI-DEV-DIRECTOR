@@ -132,8 +132,8 @@ def test_g5_html_separates_normal_and_triad_without_new_execution_post():
     html = dashboard_server.render_html()
     for marker in (
         'id="normal-mode-btn"', 'id="triad-mode-btn"', 'id="triad-research-center"',
-        "TRIAD RESEARCH CENTER", "3개 독립 제안", "교차 비평", "합성 가설", "기각된 아이디어",
-        "배운 점", "다음 단계", 'id="research-raw"', 'id="main"', 'id="chat-form"',
+        "TRIAD RESEARCH CENTER", "3 independent proposals", "Cross-critique", "Synthesized hypothesis", "Rejected ideas",
+        "What we learned", "Next step", 'id="research-raw"', 'id="main"', 'id="chat-form"',
     ):
         assert marker in html
     assert "setDashboardView" in html and "renderResearch" in html
