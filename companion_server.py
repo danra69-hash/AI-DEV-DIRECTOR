@@ -27,9 +27,9 @@ _PICK_LOCK = threading.Lock()
 SESSION_COOKIE = 'director_session'
 LOCK_PAGE = ('<!doctype html><meta charset="utf-8"><title>AI DEV DIRECTOR</title>'
              '<body style="font:16px/1.7 system-ui,sans-serif;max-width:560px;margin:14vh auto;padding:0 20px;color:#222">'
-             '<h1 style="font-size:20px">이 브라우저는 아직 연결되지 않았습니다</h1>'
-             '<p>start-companion 을 실행하면 터미널에 연결 주소가 나옵니다. 그 주소로 한 번 접속하면 '
-             '이 브라우저는 계속 열립니다.</p>'
+             '<h1 style="font-size:20px">This browser is not connected yet</h1>'
+             '<p>Run start-companion. The terminal prints a login address. Open that address once and '
+             'this browser stays connected.</p>'
              '<p style="color:#666">Run start-companion and open the login link it prints (once per browser).</p></body>')
 
 
@@ -53,17 +53,17 @@ def _same(a: str, b: str) -> bool:
 def pick_folder(initial: str = "", timeout: int = 300) -> dict:
     """Open the native folder dialog on this PC's desktop and return {'path': str} ('' when cancelled). One at a time."""
     if not _PICK_LOCK.acquire(blocking=False):
-        return {"error": "폴더 선택 창이 이미 열려 있습니다."}
+        return {"error": "The folder window is already open."}
     try:
         out = subprocess.run([sys.executable, str(ROOT / "scripts" / "pick_folder.py"), initial or ""],
                              capture_output=True, timeout=timeout)
         if out.returncode != 0:
-            return {"error": "폴더 선택 창을 열지 못했습니다."}
+            return {"error": "Could not open the folder window."}
         return {"path": str(json.loads(out.stdout.decode("ascii") or "{}").get("path", ""))}
     except subprocess.TimeoutExpired:
-        return {"error": "폴더 선택 시간이 초과됐습니다."}
+        return {"error": "The folder window timed out."}
     except (OSError, ValueError):
-        return {"error": "폴더 선택 창을 열지 못했습니다."}
+        return {"error": "Could not open the folder window."}
     finally:
         _PICK_LOCK.release()
 
@@ -75,13 +75,13 @@ def solomon_target_ok(path: str) -> tuple:
     try:
         target = Path(path).resolve()
     except (OSError, ValueError):
-        return False, '경로를 해석할 수 없습니다'
+        return False, 'The path could not be resolved'
     roots = [Path(r).resolve() for r in (cfg.get('allowed_roots') or [])]
     denied = [Path(x).resolve() for x in (cfg.get('denied') or [])] + [ROOT.resolve()]
     if not any(target == r or r in target.parents for r in roots):
-        return False, '솔로몬에 허용된 폴더 밖입니다'
+        return False, 'Outside the folders Solomon is allowed to use'
     if any(target == x or x in target.parents for x in denied):
-        return False, '이 폴더는 솔로몬이 지시할 수 없습니다'
+        return False, 'Solomon cannot direct this folder'
     return True, str(target)
 
 
@@ -187,7 +187,7 @@ class CompanionHandler(d.DashboardHandler):
                     ident = path.split('/')[3][:80]
                     m = MissionStore().load(ident)
                     if not m:
-                        return self._send_json({'error': '알 수 없는 미션입니다'}, 404)
+                        return self._send_json({'error': 'Unknown mission'}, 404)
                     return self._send_json(d.mission_view(m))
             except ValueError as exc:
                 return self._send_json({'error': str(exc)}, 400)
@@ -230,11 +230,11 @@ class CompanionHandler(d.DashboardHandler):
                     d.invalidate_status_cache()
                 except Exception as exc:  # bookkeeping only; the saved file is already the source of truth
                     logging.getLogger('director.companion').warning('role bookkeeping refresh failed: %s', exc)
-                return self._send_json({'roles': roles, 'message': '저장됨 · 다음 대화/작업부터 적용됩니다. 진행 중인 실행은 유지됩니다.'})
+                return self._send_json({'roles': roles, 'message': 'Saved · applies from the next chat or task. The current run is kept.'})
             except (ValueError, TypeError, KeyError) as exc:
                 return self._send_json({'error': str(exc)}, 400)
             except OSError:
-                return self._send_json({'error': '역할 설정을 저장하지 못했습니다.'}, 500)
+                return self._send_json({'error': 'Could not save the role settings.'}, 500)
         if self.path == '/ops/missions/stop':
             # 작업 정지 (2026-11-03): stop running missions + kill their CLI processes; the dashboard stays up.
             if not d.is_request_origin_allowed(self.headers, self.server.server_address[1])[0] or not self.authorized():
@@ -244,7 +244,7 @@ class CompanionHandler(d.DashboardHandler):
                 payload = json.loads(self.rfile.read(size)) if 0 < size <= 4096 else {}
                 if not isinstance(payload, dict):
                     payload = {}
-                return self._send_json(d.stop_missions(str(payload.get('reason', ''))[:300], payload.get('mission_id') or None, by=str(payload.get('by') or '사용자')[:40]))
+                return self._send_json(d.stop_missions(str(payload.get('reason', ''))[:300], payload.get('mission_id') or None, by=str(payload.get('by') or 'you')[:40]))
             except (ValueError, TypeError) as exc:
                 return self._send_json({'error': str(exc)}, 400)
         if self.path == '/ops/shutdown':
@@ -262,7 +262,7 @@ class CompanionHandler(d.DashboardHandler):
             logging.getLogger('director.companion').warning('shutdown requested from %s', self.headers.get('Referer') or 'local client')
             import threading
             threading.Thread(target=self.server.shutdown, name='director-shutdown', daemon=True).start()
-            return self._send_json({'stopping': True, 'message': 'AI DEV를 멈춥니다. 기록과 작업본은 남고, 다시 켜면 중단된 미션을 이어갑니다.'})
+            return self._send_json({'stopping': True, 'message': 'Stopping AI DEV. Records and work copies are kept, and a stopped mission continues when you start again.'})
         if self.path == '/ops/pick-folder':
             if not d.is_request_origin_allowed(self.headers, self.server.server_address[1])[0] or not self.authorized():
                 return self._send_json({'error': 'local authenticated request required'}, 403)
@@ -285,7 +285,7 @@ class CompanionHandler(d.DashboardHandler):
                 if self.path == '/bridge/missions':
                     ident = str(payload.get('request_id', ''))
                     if not re.fullmatch(r'[A-Za-z0-9_-]{8,100}', ident):
-                        raise ValueError('안정적인 request_id가 필요합니다')
+                        raise ValueError('A stable request_id is required')
                     from core.mission import MissionStore
                     known = [m for m in MissionStore().all() if m.get('request_id') == ident]
                     if known:                                  # retries never start a second mission
@@ -295,7 +295,7 @@ class CompanionHandler(d.DashboardHandler):
                         raise ValueError(target)
                     goal = str(payload.get('goal', '')).strip()
                     if not 5 <= len(goal) <= 6000:
-                        raise ValueError('작업 목표는 5~6000자여야 합니다')
+                        raise ValueError('The goal must be 5 to 6000 characters')
                     result = d.start_goal_mission(target, goal, profile=payload.get('profile'), source='solomon', request_id=ident,
                                                   create_project=bool(payload.get('create_project')), auto_apply=payload.get('auto_apply'))
                     code = {'started': 202, 'busy': 409, 'question': 200, 'escalated': 200}.get(result.get('status'), 400)
@@ -334,7 +334,7 @@ class CompanionHandler(d.DashboardHandler):
                 unread = 0
             if 0 < unread <= 65536:
                 self.rfile.read(unread)
-            return self._send_json({'error': '연결되지 않은 요청입니다. start-companion 이 알려 주는 연결 주소로 먼저 접속해 주세요.'}, 403)
+            return self._send_json({'error': 'This request is not connected. Open the login address from start-companion first.'}, 403)
         return super().do_POST()
 
 

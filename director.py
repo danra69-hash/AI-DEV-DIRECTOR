@@ -100,7 +100,7 @@ def resume(run_id: str):
 @click.option("--profile", type=click.Choice(["quick", "standard", "deep"]), default=None, help="Budget: quick / standard / deep")
 @click.option("--no-apply", is_flag=True, help="Keep the result in the worktree instead of applying it to the project")
 def do(goal: str, project: Optional[str], profile: Optional[str], no_apply: bool):
-    """The compact way: `director do "캡션 검사기 만들어줘"` inside a project folder. Starts the mission through the
+    """The compact way: `director do "build a caption checker"` inside a project folder. Starts the mission through the
     running 8081 companion (so it shows on the stage) or, when no companion is up, runs it right here."""
     import os
     import urllib.request
@@ -119,7 +119,7 @@ def do(goal: str, project: Optional[str], profile: Optional[str], no_apply: bool
             res = json.loads(r.read().decode("utf-8"))
         click.echo(f"[{res.get('status')}] " + (res.get("mission_id") or res.get("message") or res.get("error") or ""))
         if res.get("mission_id"):
-            click.echo("진행 상황: http://127.0.0.1:8081/  (스테이지에서 실시간으로 보입니다)")
+            click.echo("Progress: http://127.0.0.1:8081/  (live on the stage)")
         return
     except Exception as exc:
         click.echo(f"8081 companion unavailable ({str(exc)[:120]}); running the mission in this process instead.")
@@ -166,7 +166,7 @@ def mission(project: str, goal: str, mission_id: Optional[str], max_steps: Optio
         previous = latest_deliverable(project)
         context = orch._read_project_context(previous or project)
         if previous:
-            notify(f"이전 미션 결과물에서 이어서 진행: {previous}")
+            notify(f"Continuing from the previous mission result: {previous}")
             context["note"] = "Continuing from the latest mission deliverable; the listed files already exist there."
         from core import usage
         usage.set_context(stage="CHAT", run_id=None, mission_id=None)   # the ledger shows what this first HEAD call is
@@ -177,23 +177,23 @@ def mission(project: str, goal: str, mission_id: Optional[str], max_steps: Optio
         from schemas.order import OrderSchema
         gate = autopilot.entry_gate(OrderSchema(**resp["order"]), project, orch.head, cwd=project)
         for note in gate["notes"]:
-            notify("HEAD 대리 처리: " + note)
+            notify("HEAD handled this: " + note)
         if gate["escalate"]:
-            notify(f"사용자 결정 필요: {gate['escalate']}")
+            notify(f"Your decision is required: {gate['escalate']}")
             return
         mission_id = runner.create(project, goal, gate["order"], config=config, notes=gate["notes"], profile=profile, source="cli")["mission_id"]
-        notify(f"미션 시작 {mission_id}")
+        notify(f"Mission started {mission_id}")
     else:
         if max_steps:
             existing = runner.store.load(mission_id)
             existing["max_steps"] = max(max_steps, len(existing["steps"]) + 1)
             runner.store.save(existing)
-            notify(f"미션 {mission_id} 단계 예산을 {existing['max_steps']}로 조정")
+            notify(f"Mission {mission_id} step budget set to {existing['max_steps']}")
         if replan:
             existing = runner.store.load(mission_id)
             existing["steps"][-1]["operator_replan"] = replan
             runner.store.save(existing)
-            notify(f"미션 {mission_id}: 멈춘 단계를 운영자가 재계획으로 돌려보냄 - {replan}")
+            notify(f"Mission {mission_id}: the operator sent the stopped step back to planning - {replan}")
         runner.reopen(mission_id)
     final = runner.run(mission_id)
     click.echo(f"=== Mission {mission_id}: {final['status']} ===")

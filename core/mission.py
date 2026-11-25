@@ -191,7 +191,7 @@ class MissionRunner:
             step["result"] = self._evidence(orch, step["run_id"])
             self.store.save(mission)
             r = step["result"]
-            self.notify(f"[미션 {step['index']}/{total}] 결과 {r['final_state']} - "
+            self.notify(f"[Mission {step['index']}/{total}] result {r['final_state']} - "
                         f"{self._one_line(r)}", run_id=step["run_id"])
         result = step["result"]
         if result["final_state"] == State.PASS:
@@ -224,8 +224,8 @@ class MissionRunner:
                     self.store.save(mission)
                     return self._finish(mission, "BLOCKED", blocked=detail)
                 treated = f"FAIL (USER_DECISION reviewed by {source} as not a delegated exception: {why[:300]}; HEAD re-plans)"
-                self.notify(f"[미션 {step['index']}/{total}] 사용자 확인 요청을 HEAD가 재검토: 위임 예외(결제·자격증명·"
-                            f"실자금·보안)가 아니므로 계획을 다시 세웁니다.", run_id=step["run_id"])
+                self.notify(f"[Mission {step['index']}/{total}] HEAD re-checked a request for your confirmation: it is not a delegated exception "
+                            f"(payment, credentials, live funds, security), so HEAD plans again.", run_id=step["run_id"])
             result["treated_as"] = treated
             self.store.save(mission)
 
@@ -277,7 +277,7 @@ class MissionRunner:
             nxt["result"] = self._evidence(orch, nxt["run_id"])
             return self._finish(mission, "BLOCKED", summary=plan.get("summary", ""), blocked=gate["escalate"])
         self.store.save(mission)
-        self.notify(f"[미션 {nxt['index']}/{total}] HEAD 계획: {plan.get('summary', '')[:400]}\n다음 단계: {order.goal[:300]}",
+        self.notify(f"[Mission {nxt['index']}/{total}] HEAD plan: {plan.get('summary', '')[:400]}\nNext step: {order.goal[:300]}",
                     role="HEAD")
         return mission
 
@@ -299,7 +299,7 @@ class MissionRunner:
             self.store.save(mission)
         else:
             orch._reserved_run_ids = set(getattr(orch, "_reserved_run_ids", set())) | {rid}
-        self.notify(f"[미션 {step['index']}/{mission['max_steps']}] 실행 시작: {order.goal[:300]}", run_id=rid)
+        self.notify(f"[Mission {step['index']}/{mission['max_steps']}] starting: {order.goal[:300]}", run_id=rid)
         try:
             orch.run(project, order.goal, run_id=rid, order=order, base_worktree=mission.get("base_worktree"))
         except Exception as exc:
@@ -385,11 +385,11 @@ class MissionRunner:
         tests = result.get("tests") or {}
         parts = []
         if tests:
-            parts.append(f"테스트 {tests.get('passed', 0)} 통과/{tests.get('failed', 0)} 실패")
+            parts.append(f"tests {tests.get('passed', 0)} passed/{tests.get('failed', 0)} failed")
         if result.get("review_verdict"):
-            parts.append(f"리뷰 {result['review_verdict']}")
+            parts.append(f"review {result['review_verdict']}")
         if result.get("repair_rounds"):
-            parts.append(f"자동 수정 {result['repair_rounds']}회")
+            parts.append(f"auto-fix {result['repair_rounds']}")
         if result["final_state"] != State.PASS:
             parts.append((result.get("stop_detail") or "")[:200])
         return ", ".join(parts)
@@ -400,13 +400,13 @@ class MissionRunner:
         mission["blocked_reason"] = blocked
         self.store.save(mission)
         passed = sum(1 for s in mission["steps"] if (s.get("result") or {}).get("final_state") == State.PASS)
-        where = mission.get("base_worktree") or "(아직 통과한 단계 없음)"
-        head_line = {"DONE": "미션 완료", "BLOCKED": "미션 보류 - 사용자 결정 필요",
-                     "INCOMPLETE": "미션 중단 - 단계 예산 소진 또는 계획 불가", "FAILED": "미션 실패"}[status]
-        text = (f"{head_line} ({passed}/{len(mission['steps'])} 단계 통과)\n"
-                f"목표: {mission['goal'][:300]}\n{mission['summary'][:1500]}\n결과물 위치(작업본): {where}")
+        where = mission.get("base_worktree") or "(no step has passed yet)"
+        head_line = {"DONE": "Mission complete", "BLOCKED": "Mission held - your decision is required",
+                     "INCOMPLETE": "Mission stopped - the step budget is used up, or a plan is not possible", "FAILED": "Mission failed"}[status]
+        text = (f"{head_line} ({passed}/{len(mission['steps'])} steps passed)\n"
+                f"Goal: {mission['goal'][:300]}\n{mission['summary'][:1500]}\nResult location (work copy): {where}")
         if blocked:
-            text += f"\n사유: {blocked[:600]}"
+            text += f"\nReason: {blocked[:600]}"
         self.notify(text, run_id=mission["steps"][-1].get("run_id"), role="HEAD")
         self._auto_apply(mission)
         return mission
@@ -428,12 +428,12 @@ class MissionRunner:
         mission["applied"] = {"run_id": rid, "at": _now(), **{k: v for k, v in result.items() if k != "request_id"}}
         self.store.save(mission)
         if result.get("status") == "applied":
-            self.notify(f"결과물을 프로젝트에 적용했습니다: {len(result.get('files', []))}개 파일 "
-                        f"({mission['project_path']}). 적용 후 테스트: {result.get('verification')}", run_id=rid)
+            self.notify(f"Applied the result to the project: {len(result.get('files', []))} files "
+                        f"({mission['project_path']}). Tests after apply: {result.get('verification')}", run_id=rid)
         else:
             why = "; ".join(result.get("blocks") or []) or result.get("reason") or result.get("error") or result.get("status")
-            self.notify(f"결과물을 자동 적용하지 않았습니다 ({result.get('status')}): {str(why)[:400]}. "
-                        f"작업본: {mission.get('base_worktree')}", run_id=rid)
+            self.notify(f"Did not apply the result automatically ({result.get('status')}): {str(why)[:400]}. "
+                        f"Work copy: {mission.get('base_worktree')}", run_id=rid)
 
 
 class _NullLogger:
@@ -441,7 +441,7 @@ class _NullLogger:
         return lambda *a, **k: None
 
 
-def stop_request(mission_id: str, reason: str = "", by: str = "사용자", store: Optional[MissionStore] = None) -> Optional[Dict[str, Any]]:
+def stop_request(mission_id: str, reason: str = "", by: str = "you", store: Optional[MissionStore] = None) -> Optional[Dict[str, Any]]:
     """Mark a RUNNING mission STOPPED. The mission loop exits after the current step (or at once if the step's CLI
     is killed by the caller); resume-on-start never picks a STOPPED mission up; reopen() continues it later."""
     store = store or MissionStore()
@@ -450,7 +450,7 @@ def stop_request(mission_id: str, reason: str = "", by: str = "사용자", store
         return m
     m["status"] = "STOPPED"
     m["stopped_at"] = _now()
-    m["blocked_reason"] = f"{by} 지시로 정지" + (f": {reason[:300]}" if reason else "") + " · 이어가려면 '재개'"
+    m["blocked_reason"] = f"Stopped by {by}" + (f": {reason[:300]}" if reason else "") + " · resume to continue"
     store.save(m, force=True)
     return m
 
