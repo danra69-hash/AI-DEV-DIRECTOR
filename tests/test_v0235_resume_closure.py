@@ -187,7 +187,7 @@ def test_e_deciding_symlink_escape(isolate_provider_db, tmp_path):
 
 # ------------------------------------------------------------------ TEST F: DECIDING + absolute / UNC ORDER -> HUMAN_REQUIRED
 
-@pytest.mark.parametrize("bad", [r"C:\temp", "/tmp/foo", r"\\server\\share", "//srv/x"])
+@pytest.mark.parametrize("bad", [r"C:\temp", "/tmp/foo", r"\\server\share", "//srv/x"])
 def test_f_deciding_absolute_or_unc(isolate_provider_db, bad):
     class PassHead(MockHead):
         def decide(self, *a, **k):
